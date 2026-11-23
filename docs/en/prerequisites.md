@@ -23,12 +23,16 @@ HorizonDB, inference, Container Apps, ACR, Log Analytics, NAT Gateway, static IP
 | Git | Workshop and editable local fork |
 | Browser | Use the application |
 
-On macOS with Homebrew:
+On macOS with [Homebrew](https://brew.sh/) already installed, install the required CLI tools together:
 
 ```bash
-brew install libpq
-export PATH="$(brew --prefix libpq)/bin:$PATH"
+brew update
+brew install libpq azure-cli node@24 git
+brew install azure/azd/azd
+export PATH="$(brew --prefix libpq)/bin:$(brew --prefix node@24)/bin:$PATH"
 ```
+
+Node.js includes npm. Both `libpq` and `node@24` need PATH entries. To keep them available in new terminal sessions, add the same `export` line to your shell configuration file (`~/.zshrc` for zsh).
 
 On WSL2/Ubuntu, install `postgresql-client git`; use the official instructions if the distribution client is older than 17. No local PostgreSQL server or Docker is required; ACR builds containers in Azure.
 
