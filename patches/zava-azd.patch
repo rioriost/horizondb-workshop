@@ -1,0 +1,2892 @@
+diff --git a/.gitignore b/.gitignore
+index b1d1133..2d7d49b 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -21,6 +21,11 @@ Thumbs.db
+ .env
+ .env.local
+ .env.*.local
++.env.*
++!.env.example
++.azure/
++dist/
++!src/zava-designer-agent-ui-demo/certs/roots.pem
+ 
+ # Dependencies (if applicable)
+ node_modules/
+diff --git a/README.en.md b/README.en.md
+new file mode 100644
+index 0000000..bde9d00
+--- /dev/null
++++ b/README.en.md
+@@ -0,0 +1,84 @@
++# Zava Designer Agent — HorizonDB workshop fork
++
++[日本語](README.md)
++
++Provision, initialize and deploy a HorizonDB-backed React application with **`azd up`**. **Azure Container Apps is the default**; a parameter selects App Service instead. The backend calls real HorizonDB functions and managed models.
++
++## Prerequisites
++
++Install Azure CLI, Azure Developer CLI 1.39.1+, Node.js 24+ and npm. The PostgreSQL exercises additionally require `psql` 17+. ACR builds images in Azure, so local Docker is unnecessary.
++
++Use an Azure Public subscription/region with HorizonDB PostgreSQL 17, two-vCore capacity and AI Model Management for embedding, chat and reranking. Resource creation and RBAC assignment permissions are required: Owner, or Contributor plus RBAC administration. **Review model terms and costs before running.**
++
++```bash
++az login
++azd auth login
++azd env new '<unique-environment>'
++azd env set AZURE_SUBSCRIPTION_ID '<subscription-id>'
++azd env set AZURE_LOCATION '<region-id>'
++azd up
++```
++
++Use letters, digits and hyphens in the environment name and a region ID such as `japaneast`. Authenticate both CLIs with the same account. Changing shared global defaults is unnecessary. Initial database creation and managed-model preparation can take some time.
++
++## What is automated
++
++| Resource | Lab configuration |
++| --- | --- |
++| HorizonDB | PostgreSQL 17, Intel Generation 1, two vCores, one writer, HA disabled |
++| Parameter group | AI, vector, DiskANN, BM25, Durable Pipeline and Apache AGE |
++| Managed models | `default-embedding`, `default-chat`, `default-reranker` |
++| Container Apps | Consumption, 0.5 vCPU / 1 GiB, 0–1 replicas; Node.js 24 serves React and Express |
++| ACR / Log Analytics | Basic registry for remote builds/images; application log storage |
++| Networking | VNet, NAT Gateway, static IPv4, private endpoint and private DNS for Key Vault |
++| Key Vault | Public access disabled; application identity reads only its own DB credential |
++| Initialization | 18 fictional products, 1536-dimensional embeddings, DiskANN/BM25 indexes and style graph |
++
++Hooks associate the custom parameter group after pool creation, restart only for pending static changes, and enable AI Model Management through its update API. Deployment verifies static UI assets, database health and a real six-stage design request.
++
++Generated credentials are not printed or passed in process arguments. They remain in permission-restricted `.azure/<environment>/.env` and Key Vault; never commit environment files. Database access is limited to the client and fixed NAT egress IPv4. Application access is limited to the client IP, discovered with `api.ipify.org`. Set `AZURE_CLIENT_IP` explicitly with `azd env set` if necessary. TLS certificate/hostname validation stays enabled.
++
++Reruns preserve existing products and embeddings. Unexpected catalog counts or unavailable AI features cause explicit errors. This is a temporary lab, not a production availability/network design. Vault purge protection is disabled to allow cleanup of temporary credentials.
++
++**NAT Gateway, ACR, Private Endpoint and other infrastructure incur charges even at zero replicas.** Budget for the database, inference, logs and networking, and clean up after use.
++
++## Select App Service
++
++Set this in an environment that has not been provisioned:
++
++```bash
++azd env set AZURE_HOSTING_TARGET appservice
++azd up
++```
++
++This publishes Node.js source to a Linux B1 plan/Web App and requires B1 provisioning quota. Fixed-egress/private-vault networking is shared with this option; ACR, Container Apps and Log Analytics are not created.
++
++An already provisioned environment cannot change hosts. Create a new environment and configure its subscription/region to switch. The explicit Container Apps value is `containerapp`.
++
++## Use the application
++
++Open the reported URL and click **Design My Room**. Change theme, budget and priorities, then inspect **Agent Details** for real generation, schema inspection, hybrid search, AGE traversal, SQL filtering and reranking traces.
++
++Photos are static demonstration assets. Photo analysis, image generation, 100K products, brand filtering and checkout are not implemented. Managed services perform model inference; Node.js orchestrates six SQL stages and final budget selection. No separate vector database, search service or graph database is needed.
++
++## Staged one-hour workshop
++
++Start with `azd provision`, explain the technology while resources are created, then run `node zava/scripts/psql.mjs` from the parent workshop root. This launches TLS-validated psql without printing credentials. After the SQL exercises, run `azd deploy` here; initialization reuses the existing catalog, embeddings and graph.
++
++Standalone deployment still uses **`azd up` alone**.
++
++## Cleanup
++
++```bash
++azd down --purge
++```
++
++Confirm the selected environment's resource group before approving deletion. This removes the database, application, ACR, logs, vault, NAT Gateway, static IPv4, VNet, private endpoint and private DNS. Verify deletion of the Container Apps-managed group (`ME-...`, from `AZURE_CONTAINER_INFRASTRUCTURE_GROUP`) too. The optional App Service plan/Web App are removed if selected.
++
++Local fork/source remains. If organizational policy prevents vault purge, verify retained state with an administrator.
++
++## Licensing and provenance
++
++Code/assets and newly written README, infrastructure, scripts and data use [MIT](LICENSE). Retained [upstream documentation](README.upstream.md) uses [CC BY-SA 4.0](LICENSE-DOCS).
++
++Upstream: `microsoft/Build26-DEM364-simplify-app-dev-with-cloud-native-postgresql-in-azure-horizondb`, revision `74d448cde1066defc62bb17ae999f68ab1cfa9f2`. The editable local branch is `workshop/azd`; pushing to `upstream` is disabled. No GitHub-hosted fork was created.
+diff --git a/README.md b/README.md
+dissimilarity index 99%
+index 93ca390..eabb8d2 100644
+--- a/README.md
++++ b/README.md
+@@ -1,274 +1,84 @@
+-<a name="start-building"></a>
+-<br>
+-<p align="center">
+-<img src="img/banner-build-26.png" alt="Microsoft Build 2026" width="1200"/>
+-</p>
+-
+-# [Microsoft Build 2026](https://build.microsoft.com)
+-
+-## 🔥 DEM364: Zava Designer Agent — One Database, Every Layer of the AI Stack
+-
+-### Session Description
+-
+-Build the **Zava Designer Agent** — an AI-powered room designer that analyzes a photo of your living room and recommends furniture from a 100K-product catalog — using nothing but **Azure HorizonDB** (Azure's cloud-native PostgreSQL service).
+-
+-No Pinecone. No Neo4j. No separate reranker service. Vector search, full-text search, graph traversal, multimodal embeddings, reranking, and AI pipelines all run inside one Postgres database. This demo walks through a 6-tool agent pipeline — from `azure_ai.generate()` reading the room photo, to `ai.search()` doing BM25 + DiskANN + semantic reranking in one call, to Apache AGE Cypher queries traversing a style graph, to `azure_ai.rank()` curating the final picks.
+-
+-### 🛠️ What It Does
+-
+-Upload a room photo. The agent analyzes it, searches 100K Amazon Home & Kitchen products, traverses a style graph, reranks results, and picks six furniture pieces that fit — all from a single HorizonDB instance.
+-
+-The 6-tool agent pipeline:
+-
+-| Step | Tool | HorizonDB Feature | Purpose |
+-|------|------|--------------------|---------|
+-| 1 | `analyzeRoomPhoto` | `azure_ai.generate()` | LLM reads the room photo — identifies style, colors, gaps |
+-| 2 | `getSemanticContext` | `pg_catalog` + `semantic_dictionary` | Schema introspection and search term expansion |
+-| 3 | `hybridSearchProducts` | `ai.search()` × 6 categories | BM25 + DiskANN + semantic reranking in one call |
+-| 4 | `findRelatedProducts` | Apache AGE Cypher / `bought_together` | Graph traversal for style-connected products |
+-| 5 | `filterProducts` | SQL `WHERE` | Budget ceiling + minimum rating enforcement |
+-| 6 | `curateRoomPicks` | `azure_ai.rank()` | Semantic reranking, best-per-category selection |
+-
+-### 🧱 Tech Stack
+-
+-- **Database:** Azure HorizonDB (PostgreSQL) with extensions: `azure_ai`, `pg_fts`, `age`, `vector`, `pg_diskann`, `pg_durable`
+-- **Frontend:** React 18 + Vite 6
+-- **Backend:** Express 4 + node-postgres
+-- **Data:** ~60 Amazon Home & Kitchen products in `product_sample`
+-
+-### 📁 Repository Structure
+-
+-```
+-.
+-├── README.md                                       # This file
+-├── docs/
+-│   └── ui-component-playbook.md                    # How the UI was built (component playbook)
+-└── src/
+-    ├── demo-sql/                                   # SQL scripts for the demo features
+-    │   ├── data_ingest_with_ai_pipelines.sql       # AI Pipeline: chunk + embed 100K products
+-    │   ├── data_retrieval_with_ai_search.sql       # Hybrid search with reranking
+-    │   ├── data_graph_query.sql                    # Apache AGE graph queries
+-    │   └── setup/                                  # One-time setup scripts
+-    │       ├── setup.sql                           # Extensions and base config
+-    │       ├── ai-search.sql                       # Search index setup
+-    │       ├── graph_creation.sql                  # AGE graph schema
+-    │       ├── graph_creation_pipeline.sql         # AI pipeline that builds the style graph
+-    │       ├── cleanup.sql                         # Teardown script
+-    │       └── data/                               # Sample data + table DDL
+-    │           ├── product-sample-table.sql        # Product table DDL
+-    │           └── product_sample_may13.csv        # Sample product data
+-    └── zava-designer-agent-ui-demo/                # Full-stack web app
+-        ├── server.js                               # Express backend — 6-tool pipeline
+-        ├── package.json                            # Dependencies
+-        ├── vite.config.js                          # Dev server config
+-        ├── public/                                 # Room photos + logos
+-        └── src/                                    # React frontend
+-            ├── App.jsx                             # Main layout + state machine
+-            ├── index.css                           # All styles (~2000 lines)
+-            ├── main.jsx                            # React entry point
+-            ├── components/                         # UI components
+-            │   ├── AgentTrace.jsx                  # Tool call details overlay
+-            │   ├── ChatBubble.jsx                  # Floating chat panel
+-            │   ├── DesignDrawer.jsx                # Settings drawer
+-            │   ├── DesignPanel.jsx                 # Design controls panel
+-            │   ├── ProductCard.jsx                 # Individual product display
+-            │   ├── QueryTrace.jsx                  # Pipeline steps visualization
+-            │   ├── RoomView.jsx                    # Room photo + product dots
+-            │   └── SuggestionsPanel.jsx            # Right sidebar with picks
+-            └── data/
+-                └── mockData.js                     # Fallback data for offline dev
+-```
+-
+-### ✅ Prerequisites
+-
+-- **Azure HorizonDB server** with the following extensions enabled via a parameter group (see [Quick Start step 1](#1-enable-the-required-extensions-parameter-group)): `azure_ai`, `pg_fts`, `age`, `vector`, `pg_diskann`, `pg_durable`
+-- **Model Management enabled** on the HorizonDB server (Azure Portal → AI Settings → Enable Model Management) — provides `default-embedding` and `default-chat` models. This is currently in **limited preview**; request access via [https://aka.ms/horizondb-aimm-preview](https://aka.ms/horizondb-aimm-preview). If Model Management is not available on your server, configure an Azure OpenAI endpoint and key manually — see [`src/demo-sql/setup/ai-search.sql`](src/demo-sql/setup/ai-search.sql)
+-- **Node.js** 18+ and npm
+-
+-> **Note:** Product data is loaded as part of setup (Quick Start step 3) — it is not a precondition.
+-
+-## ⚡ Quick Start
+-
+-### 1. Enable the required extensions (Parameter Group)
+-
+-Before running any setup scripts, enable all required extensions on your Azure HorizonDB server using a **parameter group**. The extensions this demo needs are:
+-
+-`azure_ai`, `pg_fts`, `age`, `vector`, `pg_diskann`, `pg_durable`
+-
+-Some of these (for example `pg_durable` and `pg_fts`) must also be loaded as shared libraries. Use these setup articles:
+-
+-- [Load shared libraries](https://learn.microsoft.com/en-us/azure/horizondb/extensions/how-to-load-libraries)
+-- [Allow extensions](https://learn.microsoft.com/en-us/azure/horizondb/extensions/how-to-allow-extensions)
+-- [Create extensions](https://learn.microsoft.com/en-us/azure/horizondb/extensions/how-to-create-extensions)
+-
+-1. Create a parameter group for your server.
+-2. Set `shared_preload_libraries` to include the libraries that require preloading (e.g. `pg_durable`, `pg_fts`).
+-3. Set `azure.extensions` to include **all** of the extensions above.
+-4. Apply the parameter group to the server (this may trigger a restart).
+-5. Connect to each target database — the setup scripts in the next step run `CREATE EXTENSION` for you.
+-
+-> **Note:** If an extension is missing from the parameter group, `CREATE EXTENSION` fails with an error like `extension "pg_diskann" is not allow-listed`. Add it to `azure.extensions` (and `shared_preload_libraries` if it needs preloading), reapply the parameter group, and retry.
+-
+-### 2. Set up the database
+-
+-Run the setup scripts against your HorizonDB instance in order:
+-
+-```bash
+-# Connect to your HorizonDB server with psql, then run:
+-\i src/demo-sql/setup/setup.sql
+-\i src/demo-sql/setup/data/product-sample-table.sql
+-\i src/demo-sql/setup/ai-search.sql
+-\i src/demo-sql/setup/graph_creation.sql
+-```
+-
+-> **Note:** The `private/` folder contains internal function definitions (`ai-pipelines-setup.sql`, `ai-search-internal.sql`) that must be run on the server before the demo scripts. These are gitignored and not published — contact the demo owner for access.
+-
+-> **Note on schema choice (`public` vs `ai`):** The native `ai.search()` function is an **upcoming HorizonDB feature shipping in Summer 2026** — until then, this demo ships equivalent helper functions you create yourself. On Azure HorizonDB the `ai` schema is owned by the platform superuser (`azuresu`), and the admin login (`adminuser`) has `USAGE` only — **not** `CREATE`. Attempting `CREATE FUNCTION ai.search...` fails with `permission denied for schema ai`, and you cannot `GRANT` yourself rights on a schema you do not own. For this reason the search helper functions in [`ai-search.sql`](src/demo-sql/setup/ai-search.sql) (`search`, `search_orig`, and components) are created in the **`public`** schema, which the admin role can write to. Functions in `public` are executable by `PUBLIC` by default, so no extra `GRANT` is needed. If you have a role that owns or can write to `ai`, change the `public.` prefixes in that script back to `ai.`.
+-
+-### 3. Load sample data
+-
+-```bash
+-# Load product data from CSV
+-# Note: ENCODING 'UTF8' avoids "character has no equivalent in UTF8" errors
+-# on clients with a non-UTF8 locale (common on Windows psql).
+-\copy product_sample FROM 'src/demo-sql/setup/data/product_sample_may13.csv' WITH (FORMAT csv, HEADER true, ENCODING 'UTF8');
+-```
+-
+-### 4. Run the demo scripts
+-
+-```bash
+-\i src/demo-sql/data_ingest_with_ai_pipelines.sql
+-\i src/demo-sql/data_retrieval_with_ai_search.sql
+-\i src/demo-sql/data_graph_query.sql
+-```
+-
+-### 5. Start the web app
+-
+-```bash
+-cd src/zava-designer-agent-ui-demo
+-
+-# Create .env with your HorizonDB credentials
+-cat > .env <<EOF
+-PGHOST=<your-horizondb-server>.horizondb.azure.com
+-PGPORT=5432
+-PGDATABASE=postgres
+-PGUSER=<your-username>
+-PGPASSWORD=<your-password>
+-EOF
+-
+-npm install
+-npm run dev:full
+-```
+-
+-The frontend opens at `http://localhost:5180` and proxies API calls to the Express backend on `:3001`.
+-
+-### 6. Use the app
+-
+-1. Open `http://localhost:5180`
+-2. Click **"Design My Room"**
+-3. Watch the 6-tool pipeline execute — room analysis → hybrid search → graph traversal → reranking
+-4. Explore the product dots on the furnished room photo
+-5. Click **"⚡ How did this work?"** for the pipeline visualization or **"⚙️ Agent Details"** for raw SQL + JSON traces
+-
+-## ✨ Key HorizonDB Features Demonstrated
+-
+-**⚡ AI Pipelines (`ai.create_pipeline`, `ai.run`)**
+-
+- - Chunk and embed 100K products with two lines of SQL. The `on_change` trigger auto-processes new inserts.
+-
+-**⚡ Hybrid Search (`ai.search`)**
+-
+- - BM25 full-text + DiskANN vector + RRF fusion + semantic reranking — all in a single function call, filtered by category.
+- - **Upcoming feature (Summer 2026):** the native `ai.search()` function is on the HorizonDB roadmap and ships in **Summer 2026**. Until then, this demo provides the same capability through equivalent helper functions (`public.search` / `public.search_orig`) defined in [`ai-search.sql`](src/demo-sql/setup/ai-search.sql).
+-
+-**⚡ Graph Traversal (Apache AGE)**
+-
+- - AI-extracted style tags (`ai.extract`) build a property graph: `(:Product)-[:HAS_STYLE]->(:Style)-[:SIMILAR_TO]->(:Style)`. Cypher queries discover cross-category, cross-style recommendations.
+-
+-**⚡ AI Functions (`azure_ai.generate`, `azure_ai.rank`)**
+-
+- - Call LLMs and rerankers directly from SQL — no external service orchestration needed.
+-
+-### 🧠 Learning Outcomes
+-
+-By the end of this session, you will be able to:
+-
+-- Stand up an end-to-end RAG pipeline inside Azure HorizonDB using `ai.create_pipeline` and `on_change` triggers to chunk and embed data automatically
+-- Run **hybrid search** (BM25 + DiskANN + RRF fusion + semantic reranking) across a multi-category product catalog in a single `ai.search()` call
+-- Use **Apache AGE Cypher** queries to traverse an AI-extracted property graph for style-based, cross-category product discovery
+-- Orchestrate an agent that calls LLMs (`azure_ai.generate`) and rerankers (`azure_ai.rank`) directly from SQL — without external service plumbing
+-- Architect an AI application where one database replaces the vector DB, graph DB, search service, and reranker tier
+-
+-### 💬 Keep Learning with Copilot
+-
+-Try these prompts with GitHub Copilot to explore the topics from this session. Open Copilot Chat in Visual Studio Code (`Ctrl+Alt+I` on Windows/Linux, `Cmd+Shift+I` on Mac), paste a prompt, and see what you learn. Try connecting the [Microsoft Learn MCP Server](#-microsoft-learn-mcp-server) for the latest official documentation.
+-
+-Use these as a starting point — or write your own!
+-
+-- *"Explain how `ai.create_pipeline` in Azure HorizonDB chunks and embeds data, and how the `on_change` trigger keeps the index fresh."*
+-- *"Show me how `ai.search()` combines BM25, DiskANN vector search, RRF fusion, and semantic reranking in one call. What knobs can I tune?"*
+-- *"Walk me through writing an Apache AGE Cypher query that traverses `(:Product)-[:HAS_STYLE]->(:Style)-[:SIMILAR_TO]->(:Style)` to find cross-category recommendations."*
+-- *"How do I call `azure_ai.generate()` and `azure_ai.rank()` from SQL? What models are available with HorizonDB Model Management?"*
+-- *"Design a 6-tool agent that turns a room photo into furniture recommendations using only PostgreSQL. What does each tool do?"*
+-
+-### 📚 Resources and Next Steps
+-
+-| Resource | Description |
+-|:---------|:------------|
+-| [Azure Database for PostgreSQL documentation](https://learn.microsoft.com/azure/postgresql/) | Official docs for Azure's managed PostgreSQL service (HorizonDB family) |
+-| [Apache AGE documentation](https://age.apache.org/age-manual/master/index.html) | Graph extension for PostgreSQL — Cypher inside Postgres |
+-| [pgvector documentation](https://github.com/pgvector/pgvector) | Vector similarity search for PostgreSQL |
+-| [UI Component Playbook](./docs/ui-component-playbook.md) | How the Zava Designer Agent UI was built — component-by-component |
+-| [https://aka.ms/build26-next-steps](https://aka.ms/build26-next-steps) | Explore lab and session repos to further your learning from Microsoft Build |
+-
+-
+-### 🌟 Microsoft Learn MCP Server
+-
+-The Microsoft Learn MCP Server gives your AI agent direct access to Microsoft's official documentation — grounded, up-to-date answers about the products and services covered in this session.
+-
+-**VS Code** — One click installation: 
+-
+-[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Microsoft_Learn_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=microsoft-learn&config=%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Flearn.microsoft.com%2Fapi%2Fmcp%22%7D)
+-
+-
+-**GitHub Copilot CLI** — Run this to install the Learn MCP Server as a plugin:
+-```
+-/plugin install microsoftdocs/mcp
+-```
+-
+-For more info, other clients, and to post questions, visit the [Learn MCP Server repo](https://aka.ms/learnmcp).
+-
+-## Content Owners
+-
+-<!-- Content owners -->
+-
+-<table>
+-<tr>
+-    <td align="center"><a href="http://github.com/maxluk">
+-        <img src="https://github.com/maxluk.png" width="100px;" alt="Maxim Lukiyanov"/><br />
+-        <sub><b>Maxim Lukiyanov</b></sub></a><br />
+-            <a href="https://github.com/maxluk" title="talk">📢</a>
+-    </td>
+-</tr></table>
+-
+-## Contributing
+-
+-This project welcomes contributions and suggestions.  Most contributions require you to agree to a
+-Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
+-the rights to use your contribution. For details, visit [Contributor License Agreements](https://cla.opensource.microsoft.com).
+-
+-When you submit a pull request, a CLA bot will automatically determine whether you need to provide
+-a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
+-provided by the bot. You will only need to do this once across all repos using our CLA.
+-
+-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
+-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
+-contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+-
+-## Trademarks
+-
+-This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
+-trademarks or logos is subject to and must follow
+-[Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/legal/intellectualproperty/trademarks/usage/general).
+-Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
+-Any use of third-party trademarks or logos are subject to those third-party's policies.
++# Zava Designer Agent — HorizonDB ハンズオン版
++
++[English](README.en.md)
++
++Azure HorizonDBとReact画面を、**`azd up`で作成・初期化・デプロイ**するローカルforkです。標準のホスティング先は**Azure Container Apps**で、パラメーターを変えるとApp Serviceを選べます。アプリから実際のHorizonDBと管理AIモデルを呼び出します。
++
++## 事前準備
++
++Azure CLI、Azure Developer CLI 1.39.1以降、Node.js 24以降とnpmを用意します。PostgreSQLの演習には別途`psql` 17以降が必要です。イメージはAzure上のACRでビルドするため、ローカルのDockerは不要です。
++
++HorizonDB PostgreSQL 17、2 vCore、およびAI Model Managementの3モデルを利用できるAzure Publicのサブスクリプション・リージョンを使います。リソース作成とRBAC割り当ての権限（Owner、またはContributorとRBAC管理権限）が必要です。**モデル利用規約と費用を確認してから実行してください。**
++
++```bash
++az login
++azd auth login
++azd env new '<一意な環境名>'
++azd env set AZURE_SUBSCRIPTION_ID '<サブスクリプションID>'
++azd env set AZURE_LOCATION '<リージョンID>'
++azd up
++```
++
++環境名には英数字とハイフン、リージョンには`japaneast`のようなIDを使います。`az`と`azd`は同じAzureアカウントで認証してください。共有PCの既定サブスクリプションを変更する必要はありません。初回はDBの作成や管理モデルの準備に時間がかかります。
++
++## 自動で作成するもの
++
++| 対象 | ハンズオン用の構成 |
++| --- | --- |
++| HorizonDB | PostgreSQL 17、Intel Generation 1、2 vCore、writer 1ノード、HA無効 |
++| パラメーターグループ | AI、vector、DiskANN、BM25、Durable Pipeline、Apache AGE |
++| 管理モデル | `default-embedding`、`default-chat`、`default-reranker` |
++| Container Apps | Consumption、0.5 vCPU / 1 GiB、0–1レプリカ。Node.js 24でReactとExpressを配信 |
++| ACR / Log Analytics | Basicレジストリでのリモートビルド・イメージ保存、アプリのログ保存 |
++| ネットワーク | VNet、NAT Gateway、固定IPv4、Key Vault用Private EndpointとPrivate DNS |
++| Key Vault | 公開アクセスは無効。アプリのManaged Identityはアプリ用DBパスワードのみ参照 |
++| DB初期化 | 架空の商品18件、1536次元Embedding、DiskANN/BM25インデックス、スタイルグラフ |
++
++HorizonDBの仕様に従い、pool作成後にパラメーターグループを割り当て、必要な場合のみRestartします。AI Model Managementも作成後の更新APIで有効化します。成功時は画面配信、DB接続、6段階の実デザイン要求まで自動確認します。
++
++パスワードはコマンド引数やログに出さず、権限を制限した`.azure/<環境名>/.env`とKey Vaultに保存します。環境フォルダーはコミットしないでください。DBは初期化PCとNAT Gatewayの固定送信元IP、アプリはPCのIPだけを許可します。公開IPの自動判定には`api.ipify.org`を使います。必要なら実行前に`azd env set AZURE_CLIENT_IP '<実際のIPv4>'`で指定します。TLSの証明書・ホスト名検証は有効です。
++
++既存の商品とEmbeddingは再実行時に上書きしません。商品数が想定と異なる場合や必要なAI機能が使えない場合は、エラーで停止します。この構成は短時間の演習用です。Key Vaultのpurge protectionは無効にし、終了時に秘密情報も削除できるようにしています。
++
++**レプリカ数が0でも、NAT Gateway、ACR、Private Endpointなどの料金は発生します。** DB・モデル推論・ログ・ネットワークの料金も含めて予算を確認し、使用後は後片付けを行ってください。
++
++## App Serviceを選ぶ
++
++まだデプロイしていない環境で、`azd up`の前に設定します。
++
++```bash
++azd env set AZURE_HOSTING_TARGET appservice
++azd up
++```
++
++Linux B1とWeb Appを作成し、Node.jsのソースを配信します。B1を作成できるクォータが必要です。固定送信元IPとKey Vaultへのプライベート接続用ネットワークは共通で作成し、ACR・Container Apps・Log Analyticsは作成しません。
++
++デプロイ済みの環境でホスティング先は変更できません。切り替える場合は新しい環境を作り、サブスクリプションとリージョンを設定してください。Container Appsを明示的に選ぶ値は`containerapp`です。
++
++## 画面で試す
++
++表示されたURLで**Design My Room**を押し、テーマ、予算、優先カテゴリを変えて再実行します。**Agent Details**で生成、スキーマ参照、ハイブリッド検索、AGE、SQLフィルター、リランクの実トレースを確認します。
++
++写真は静的なデモ素材です。写真解析、画像生成、100K件データ、ブランドフィルター、購入機能はこのハンズオンの対象ではありません。モデル推論そのものは管理されたモデルサービスで実行され、Node.jsが6つのSQL段階と最終選択を制御します。別のベクトルDB・検索サービス・グラフDBは不要です。
++
++## 1時間の教材と組み合わせる
++
++親のハンズオンでは最初に`azd provision`でDBとホスティングを作成し、待機中に技術解説を行います。教材ルートから`node zava/scripts/psql.mjs`で、パスワードを表示せずTLS検証付きの`psql`に接続できます。SQL演習の後にこのフォルダーで`azd deploy`を実行します。演習で作成済みの18商品・Embedding・グラフを再利用します。
++
++単独デモの実行は引き続き**`azd up`のみ**です。
++
++## 後片付け
++
++```bash
++azd down --purge
++```
++
++選択された環境のリソースグループを確認して削除を承認します。DB、アプリ、ACR、ログ、Key Vault、NAT Gateway、固定IPv4、VNet、Private Endpoint、Private DNSが対象です。Container Appsが作成した管理用リソースグループ（`AZURE_CONTAINER_INFRASTRUCTURE_GROUP`の`ME-...`）も消えたことを確認してください。App Serviceを選んだ場合は、そのプランとWeb Appも対象です。
++
++Key Vaultのpurgeが組織ポリシーで禁止される場合は、管理者と残存状態を確認してください。ローカルforkとソースは残ります。
++
++## ライセンス・参照版
++
++コード・素材と、本forkで新規作成したREADME、インフラ、スクリプト、データは[MIT](LICENSE)です。保持した[元の資料](README.upstream.md)は[CC BY-SA 4.0](LICENSE-DOCS)です。
++
++元のリポジトリは`microsoft/Build26-DEM364-simplify-app-dev-with-cloud-native-postgresql-in-azure-horizondb`、参照コミットは`74d448cde1066defc62bb17ae999f68ab1cfa9f2`です。ローカルの`workshop/azd`ブランチを編集し、`upstream`へのpushは無効化しています。GitHub上のforkは作成していません。
+diff --git a/README.md b/README.upstream.md
+similarity index 100%
+copy from README.md
+copy to README.upstream.md
+diff --git a/azure.yaml b/azure.yaml
+new file mode 100644
+index 0000000..c35c888
+--- /dev/null
++++ b/azure.yaml
+@@ -0,0 +1,47 @@
++name: zava-horizondb-workshop
++metadata:
++  template: zava-horizondb-workshop
++requiredVersions:
++  azd: '>=1.39.1'
++infra:
++  provider: bicep
++  path: infra
++workflows:
++  up:
++    steps:
++      - azd: provision
++      - azd: package
++      - azd: deploy --all
++services:
++  web:
++    condition: ${AZURE_DEPLOY_CONTAINER_APPS=true}
++    project: src/zava-designer-agent-ui-demo
++    language: js
++    host: containerapp
++    docker:
++      path: ./Dockerfile
++      remoteBuild: true
++  webapp:
++    condition: ${AZURE_DEPLOY_APP_SERVICE=false}
++    project: src/zava-designer-agent-ui-demo
++    language: js
++    host: appservice
++hooks:
++  preup:
++    shell: sh
++    run: node scripts/hooks.mjs preflight
++  prepackage:
++    shell: sh
++    run: node scripts/hooks.mjs prepare
++  preprovision:
++    shell: sh
++    run: node scripts/hooks.mjs preflight
++  postprovision:
++    shell: sh
++    run: node scripts/hooks.mjs configure
++  predeploy:
++    shell: sh
++    run: node scripts/hooks.mjs configure && node scripts/hooks.mjs seed
++  postdeploy:
++    shell: sh
++    run: node scripts/hooks.mjs verify
+diff --git a/data/products.csv b/data/products.csv
+new file mode 100644
+index 0000000..6c9f8a4
+--- /dev/null
++++ b/data/products.csv
+@@ -0,0 +1,19 @@
++id,title,title_ja,category,price,rating,style,content
++1,Oak Reading Chair,オークの読書チェア,seating,180.00,4.7,scandinavian,Scandinavian oak reading chair with cream fabric. Compact comfortable seating for a small bright living room.
++2,Walnut Lounge Chair,ウォールナットのラウンジチェア,seating,240.00,4.6,mid-century,Mid-century walnut lounge chair with tapered legs and a warm brown cushion. Comfortable seating for reading.
++3,Steel Accent Chair,スチールのアクセントチェア,seating,130.00,4.1,industrial,Industrial black steel accent chair with a firm leather seat. Compact seating for an exposed brick loft.
++4,Round Oak Coffee Table,丸いオークのコーヒーテーブル,tables,120.00,4.8,scandinavian,Scandinavian round oak coffee table with light wood and safe curved edges. Small living room table.
++5,Walnut Storage Table,収納付きウォールナットテーブル,tables,210.00,4.5,mid-century,Mid-century walnut coffee table with a shelf for books and tapered legs. Warm wood living room table.
++6,Steel Side Table,スチールのサイドテーブル,tables,70.00,4.2,industrial,Industrial steel side table with a dark wood top. Small durable table for a brick loft.
++7,Linen Floor Lamp,リネンシェードのフロアランプ,lighting,90.00,4.7,scandinavian,Scandinavian floor lamp with an oak stand and cream linen shade. Warm ambient reading light for a cozy room.
++8,Brass Arc Lamp,真鍮のアークランプ,lighting,160.00,4.6,mid-century,Mid-century brass arc floor lamp with a warm white bulb. Soft reading lighting beside a lounge chair.
++9,Factory Pendant Lamp,ファクトリーペンダントランプ,lighting,80.00,4.3,industrial,Industrial black metal pendant lamp with a focused bulb. Ceiling lighting for an exposed brick loft.
++10,Cream Wool Rug,クリーム色のウールラグ,rugs,140.00,4.8,scandinavian,Scandinavian cream wool area rug with a subtle texture. Soft quiet floor covering for a small bright living room.
++11,Geometric Area Rug,幾何学柄のエリアラグ,rugs,170.00,4.5,mid-century,Mid-century geometric area rug in mustard and brown. Warm colorful floor covering for a wood furnished room.
++12,Charcoal Flatweave Rug,チャコールの平織りラグ,rugs,100.00,4.2,industrial,Industrial charcoal flatweave area rug. Durable dark floor covering for a steel and brick living room.
++13,Oak Open Bookshelf,オークのオープン本棚,storage,190.00,4.7,scandinavian,Scandinavian narrow oak bookshelf with open shelves. Compact storage for books in a bright reading corner.
++14,Walnut Record Cabinet,ウォールナットのレコードキャビネット,storage,230.00,4.6,mid-century,Mid-century walnut cabinet with tapered legs. Closed storage for records and books in a warm living room.
++15,Steel Ladder Shelf,スチールのラダーシェルフ,storage,110.00,4.3,industrial,Industrial steel ladder shelf with dark wood shelves. Narrow open storage for a brick loft.
++16,Botanical Wall Print,植物モチーフのウォールプリント,decor,45.00,4.6,scandinavian,Scandinavian botanical wall art print with a light oak frame. Calm green decoration for a bright living room.
++17,Abstract Sunset Print,抽象的な夕焼けのプリント,decor,65.00,4.4,mid-century,Mid-century abstract sunset wall art in orange and brown. Warm decorative print with a walnut frame.
++18,Monochrome City Print,モノクロの街並みプリント,decor,40.00,4.1,industrial,Industrial monochrome city wall art with a black metal frame. Graphic decoration for an exposed brick loft.
+diff --git a/infra/container-app.bicep b/infra/container-app.bicep
+new file mode 100644
+index 0000000..cd5e424
+--- /dev/null
++++ b/infra/container-app.bicep
+@@ -0,0 +1,123 @@
++param location string
++param tags object
++param token string
++param clientIp string
++param vaultUri string
++param identityName string
++param identityResourceId string
++param identityPrincipalId string
++param infrastructureSubnetId string
++
++var infrastructureGroupName = 'ME-zava-${token}'
++
++module logs 'br/public:avm/res/operational-insights/workspace:0.16.2' = {
++  name: 'container-logs'
++  params: {
++    name: 'log-zava-${token}'
++    location: location
++    tags: tags
++    skuName: 'PerGB2018'
++    dataRetention: 30
++    dailyQuotaGb: '0.1'
++    forceCmkForQuery: false
++    enableTelemetry: false
++  }
++}
++
++module stack 'br/public:avm/ptn/azd/container-apps-stack:0.4.0' = {
++  name: 'container-stack'
++  params: {
++    location: location
++    tags: tags
++    containerAppsEnvironmentName: 'cae-zava-${token}'
++    containerRegistryName: 'crzava${token}'
++    acrSku: 'Basic'
++    acrAdminUserEnabled: false
++    publicNetworkAccess: 'Enabled'
++    logAnalyticsWorkspaceName: logs.outputs.name
++    infrastructureSubnetResourceId: infrastructureSubnetId
++    infrastructureResourceGroupName: infrastructureGroupName
++    internal: false
++    zoneRedundant: false
++    workloadProfiles: [
++      {
++        name: 'Consumption'
++        workloadProfileType: 'Consumption'
++      }
++    ]
++    enableTelemetry: false
++  }
++}
++
++module app 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
++  name: 'container-web'
++  params: {
++    name: 'ca-zava-${token}'
++    location: location
++    tags: union(tags, { 'azd-service-name': 'web' })
++    containerAppsEnvironmentName: stack.outputs.environmentName
++    containerRegistryName: stack.outputs.registryName
++    identityName: identityName
++    identityType: 'UserAssigned'
++    userAssignedIdentityResourceId: identityResourceId
++    principalId: identityPrincipalId
++    // azd replaces this port-8080 bootstrap image with the real Node.js image.
++    imageName: 'mcr.microsoft.com/dotnet/samples:aspnetapp'
++    containerName: 'web'
++    containerCpuCoreCount: '0.5'
++    containerMemory: '1Gi'
++    containerMinReplicas: 0
++    containerMaxReplicas: 1
++    targetPort: 8080
++    ingressAllowInsecure: false
++    revisionMode: 'Single'
++    ipSecurityRestrictions: [
++      {
++        name: 'workshop-client'
++        action: 'Allow'
++        ipAddressRange: '${clientIp}/32'
++      }
++    ]
++    secrets: [
++      {
++        name: 'db-app-password'
++        keyVaultUrl: '${vaultUri}/secrets/db-app-password'
++        identity: identityResourceId
++      }
++    ]
++    env: [
++      { name: 'PORT', value: '8080' }
++      { name: 'PGHOST', value: '' }
++      { name: 'PGPORT', value: '5432' }
++      { name: 'PGDATABASE', value: 'postgres' }
++      { name: 'PGUSER', value: 'zava_app' }
++      { name: 'PGPASSWORD', secretRef: 'db-app-password' }
++    ]
++    containerProbes: [
++      {
++        type: 'Startup'
++        tcpSocket: { port: 8080 }
++        periodSeconds: 10
++        failureThreshold: 10
++      }
++      {
++        type: 'Liveness'
++        tcpSocket: { port: 8080 }
++        periodSeconds: 10
++      }
++      {
++        type: 'Readiness'
++        tcpSocket: { port: 8080 }
++        periodSeconds: 5
++      }
++    ]
++    enableTelemetry: false
++  }
++}
++
++output resourceId string = app.outputs.resourceId
++output name string = app.outputs.name
++output hostname string = replace(app.outputs.uri, 'https://', '')
++output environmentName string = stack.outputs.environmentName
++output registryEndpoint string = stack.outputs.registryLoginServer
++output infrastructureGroupName string = infrastructureGroupName
+diff --git a/infra/main.bicep b/infra/main.bicep
+new file mode 100644
+index 0000000..7767a54
+--- /dev/null
++++ b/infra/main.bicep
+@@ -0,0 +1,62 @@
++targetScope = 'subscription'
++
++@minLength(1)
++@maxLength(60)
++param environmentName string
++
++param location string
++
++@allowed([
++  'containerapp'
++  'appservice'
++])
++param hostingTarget string = 'containerapp'
++
++@secure()
++param administratorPassword string
++
++@secure()
++param applicationPassword string
++
++param clientIp string
++
++var tags = {
++  'azd-env-name': environmentName
++  purpose: 'horizondb-workshop'
++}
++
++resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
++  name: 'rg-${environmentName}'
++  location: location
++  tags: tags
++}
++
++module resources 'resources.bicep' = {
++  name: 'zava-resources'
++  scope: resourceGroup
++  params: {
++    location: location
++    hostingTarget: hostingTarget
++    tags: tags
++    administratorPassword: administratorPassword
++    applicationPassword: applicationPassword
++    clientIp: clientIp
++  }
++}
++
++output AZURE_RESOURCE_GROUP string = resourceGroup.name
++output AZURE_DEPLOYED_HOSTING_TARGET string = hostingTarget
++output AZURE_DEPLOY_CONTAINER_APPS bool = hostingTarget == 'containerapp'
++output AZURE_DEPLOY_APP_SERVICE bool = hostingTarget == 'appservice'
++output AZURE_HORIZONDB_CLUSTER_ID string = resources.outputs.clusterId
++output AZURE_HORIZONDB_POOL_NAME string = resources.outputs.poolName
++output AZURE_HORIZONDB_PARAMETER_GROUP_ID string = resources.outputs.parameterGroupId
++output AZURE_WEB_RESOURCE_ID string = resources.outputs.webResourceId
++output AZURE_WEB_NAME string = resources.outputs.webName
++output AZURE_WEB_HOSTNAME string = resources.outputs.webHostname
++output AZURE_KEY_VAULT_NAME string = resources.outputs.keyVaultName
++output AZURE_APP_EGRESS_IP string = resources.outputs.appEgressIp
++output AZURE_CONTAINER_ENVIRONMENT_NAME string = resources.outputs.containerEnvironmentName
++output AZURE_CONTAINER_REGISTRY_ENDPOINT string = resources.outputs.registryEndpoint
++output AZURE_CONTAINER_INFRASTRUCTURE_GROUP string = resources.outputs.infrastructureGroupName
++output SERVICE_WEB_ENDPOINT string = 'https://${resources.outputs.webHostname}'
+diff --git a/infra/main.parameters.json b/infra/main.parameters.json
+new file mode 100644
+index 0000000..062bc8c
+--- /dev/null
++++ b/infra/main.parameters.json
+@@ -0,0 +1,12 @@
++{
++  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
++  "contentVersion": "1.0.0.0",
++  "parameters": {
++    "environmentName": { "value": "${AZURE_ENV_NAME}" },
++    "location": { "value": "${AZURE_LOCATION}" },
++    "hostingTarget": { "value": "${AZURE_HOSTING_TARGET=containerapp}" },
++    "administratorPassword": { "value": "${PG_ADMIN_PASSWORD}" },
++    "applicationPassword": { "value": "${PG_APP_PASSWORD}" },
++    "clientIp": { "value": "${AZURE_CLIENT_IP}" }
++  }
++}
+diff --git a/infra/network.bicep b/infra/network.bicep
+new file mode 100644
+index 0000000..1e19340
+--- /dev/null
++++ b/infra/network.bicep
+@@ -0,0 +1,76 @@
++param location string
++param tags object
++param token string
++param hostingTarget string
++
++module publicIp 'br/public:avm/res/network/public-ip-address:0.13.0' = {
++  name: 'application-egress-ip'
++  params: {
++    name: 'pip-zava-${token}'
++    location: location
++    tags: tags
++    skuName: 'Standard'
++    publicIPAllocationMethod: 'Static'
++    publicIPAddressVersion: 'IPv4'
++    availabilityZones: []
++    enableTelemetry: false
++  }
++}
++
++module nat 'br/public:avm/res/network/nat-gateway:2.1.1' = {
++  name: 'application-nat'
++  params: {
++    name: 'nat-zava-${token}'
++    location: location
++    tags: tags
++    natGatewaySku: 'Standard'
++    availabilityZone: -1
++    publicIpResourceIds: [publicIp.outputs.resourceId]
++    enableTelemetry: false
++  }
++}
++
++module network 'br/public:avm/res/network/virtual-network:0.10.2' = {
++  name: 'application-virtual-network'
++  params: {
++    name: 'vnet-zava-${token}'
++    location: location
++    tags: tags
++    addressPrefixes: ['10.88.0.0/23']
++    subnets: [
++      {
++        name: 'container-apps'
++        addressPrefix: '10.88.0.0/24'
++        delegation: hostingTarget == 'containerapp' ? 'Microsoft.App/environments' : 'Microsoft.Web/serverFarms'
++        natGatewayResourceId: nat.outputs.resourceId
++      }
++      {
++        name: 'private-endpoints'
++        addressPrefix: '10.88.1.0/27'
++        privateEndpointNetworkPolicies: 'Disabled'
++      }
++    ]
++    enableTelemetry: false
++  }
++}
++
++module vaultDns 'br/public:avm/res/network/private-dns-zone:0.8.1' = {
++  name: 'vault-private-dns'
++  params: {
++    name: 'privatelink.vaultcore.azure.net'
++    tags: tags
++    virtualNetworkLinks: [
++      {
++        name: 'zava'
++        virtualNetworkResourceId: network.outputs.resourceId
++        registrationEnabled: false
++      }
++    ]
++    enableTelemetry: false
++  }
++}
++
++output hostingSubnetId string = network.outputs.subnetResourceIds[0]
++output privateEndpointSubnetId string = network.outputs.subnetResourceIds[1]
++output vaultDnsZoneId string = vaultDns.outputs.resourceId
++output egressIp string = publicIp.outputs.ipAddress
+diff --git a/infra/resources.bicep b/infra/resources.bicep
+new file mode 100644
+index 0000000..90ed938
+--- /dev/null
++++ b/infra/resources.bicep
+@@ -0,0 +1,265 @@
++param location string
++param tags object
++
++param hostingTarget string
++
++@secure()
++param administratorPassword string
++
++@secure()
++param applicationPassword string
++
++param clientIp string
++
++var token = uniqueString(resourceGroup().id)
++var vaultName = 'kvzava${token}'
++var vaultUri = 'https://${vaultName}${environment().suffixes.keyvaultDns}'
++var poolName = 'primary'
++var useContainerApps = hostingTarget == 'containerapp'
++
++// HorizonDB has no published AVM module. Use its official preview ARM contract.
++resource cluster 'Microsoft.HorizonDb/clusters@2026-10-01-preview' = {
++  name: 'hdb-${token}'
++  location: location
++  tags: tags
++  properties: {
++    postgreSqlVersion: '17'
++    network: {
++      publicAccess: 'Enabled'
++    }
++    backup: {
++      geoRedundancy: 'Disabled'
++    }
++  }
++}
++
++resource passwordAuthentication 'Microsoft.HorizonDb/clusters/authentications@2026-10-01-preview' = {
++  parent: cluster
++  name: 'passwordMethod'
++  properties: {
++    state: 'Enabled'
++    #disable-next-line use-secure-value-for-secure-inputs
++    administratorLogin: 'workshop_admin'
++    administratorLoginPassword: administratorPassword
++  }
++  dependsOn: [
++    pool
++  ]
++}
++
++resource pool 'Microsoft.HorizonDb/clusters/pools@2026-10-01-preview' = {
++  parent: cluster
++  name: poolName
++  // The official REST contract permits omission, selecting the PG17 default group.
++  #disable-next-line BCP035
++  properties: {
++    computeModel: {
++      type: 'Provisioned'
++      computeProcessor: 'Intel'
++      computeGeneration: 1
++      vCores: 2
++    }
++    nodeCount: 1
++    highAvailability: {
++      mode: 'Disabled'
++    }
++  }
++}
++
++resource clientFirewall 'Microsoft.HorizonDb/clusters/pools/firewallRules@2026-10-01-preview' = {
++  parent: pool
++  name: 'workshop-client'
++  properties: {
++    startIpAddress: clientIp
++    endIpAddress: clientIp
++  }
++  dependsOn: [
++    passwordAuthentication
++  ]
++}
++
++resource parameterGroup 'Microsoft.HorizonDb/parameterGroups@2026-10-01-preview' = {
++  name: 'zava-${token}'
++  location: location
++  tags: tags
++  properties: {
++    postgreSqlVersion: '17'
++    description: 'HorizonDB SQL AI and AGE workshop extensions'
++    parameters: [
++      {
++        name: 'azure.extensions'
++        value: 'azure_ai,vector,pg_diskann,pg_textsearch,pg_durable,age'
++      }
++      {
++        name: 'shared_preload_libraries'
++        value: 'pg_textsearch,pg_durable,age'
++      }
++    ]
++  }
++}
++
++module network 'network.bicep' = {
++  name: 'application-network'
++  params: {
++    location: location
++    tags: tags
++    token: token
++    hostingTarget: hostingTarget
++  }
++}
++
++module plan 'br/public:avm/res/web/serverfarm:0.7.1' = if (!useContainerApps) {
++  name: 'hosting-plan'
++  params: {
++    name: 'asp-zava-${token}'
++    location: location
++    tags: tags
++    kind: 'linux'
++    reserved: true
++    skuName: 'B1'
++    skuCapacity: 1
++    zoneRedundant: false
++    enableTelemetry: false
++  }
++}
++
++module web 'br/public:avm/res/web/site:0.24.0' = if (!useContainerApps) {
++  name: 'web'
++  params: {
++    name: 'zava-${token}'
++    location: location
++    tags: union(tags, { 'azd-service-name': 'webapp' })
++    kind: 'app,linux'
++    serverFarmResourceId: plan!.outputs.resourceId
++    virtualNetworkSubnetResourceId: network.outputs.hostingSubnetId
++    managedIdentities: {
++      systemAssigned: true
++    }
++    httpsOnly: true
++    publicNetworkAccess: 'Enabled'
++    siteConfig: {
++      linuxFxVersion: 'NODE|24-lts'
++      appCommandLine: 'npm start'
++      alwaysOn: true
++      vnetRouteAllEnabled: true
++      minTlsVersion: '1.2'
++      ftpsState: 'Disabled'
++      ipSecurityRestrictionsDefaultAction: 'Deny'
++      ipSecurityRestrictions: [
++        {
++          name: 'workshop-client'
++          ipAddress: '${clientIp}/32'
++          action: 'Allow'
++          priority: 100
++        }
++      ]
++    }
++    configs: [
++      {
++        name: 'appsettings'
++        properties: {
++          PGHOST: ''
++          PGPORT: '5432'
++          PGDATABASE: 'postgres'
++          PGUSER: 'zava_app'
++          PGPASSWORD: '@Microsoft.KeyVault(SecretUri=${vaultUri}/secrets/db-app-password)'
++          SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
++          WEBSITE_CONTAINER_START_TIME_LIMIT: '600'
++        }
++      }
++    ]
++    enableTelemetry: false
++  }
++}
++
++module identity 'br/public:avm/res/managed-identity/user-assigned-identity:0.6.0' = if (useContainerApps) {
++  name: 'container-identity'
++  params: {
++    name: 'id-zava-${token}'
++    location: location
++    tags: tags
++    enableTelemetry: false
++  }
++}
++
++module vault 'br/public:avm/res/key-vault/vault:0.14.3' = {
++  name: 'vault'
++  params: {
++    name: vaultName
++    location: location
++    tags: tags
++    sku: 'standard'
++    enableRbacAuthorization: true
++    enablePurgeProtection: false
++    softDeleteRetentionInDays: 7
++    enableVaultForDeployment: false
++    enableVaultForTemplateDeployment: false
++    enableVaultForDiskEncryption: false
++    publicNetworkAccess: 'Disabled'
++    networkAcls: {
++      defaultAction: 'Deny'
++      bypass: 'None'
++    }
++    privateEndpoints: [
++      {
++        name: 'pep-zava-${token}'
++        subnetResourceId: network.outputs.privateEndpointSubnetId
++        privateDnsZoneGroup: {
++          privateDnsZoneGroupConfigs: [
++            { privateDnsZoneResourceId: network.outputs.vaultDnsZoneId }
++          ]
++        }
++      }
++    ]
++    secrets: [
++      {
++        name: 'db-admin-password'
++        value: administratorPassword
++      }
++      {
++        name: 'db-app-password'
++        value: applicationPassword
++        roleAssignments: [
++          {
++            principalId: useContainerApps
++              ? identity!.outputs.principalId
++              : web!.outputs.systemAssignedMIPrincipalId!
++            principalType: 'ServicePrincipal'
++            roleDefinitionIdOrName: 'Key Vault Secrets User'
++          }
++        ]
++      }
++    ]
++    enableTelemetry: false
++  }
++}
++
++module containerApp 'container-app.bicep' = if (useContainerApps) {
++  name: 'container-hosting'
++  params: {
++    location: location
++    tags: tags
++    token: token
++    clientIp: clientIp
++    vaultUri: vaultUri
++    identityName: identity!.outputs.name
++    identityResourceId: identity!.outputs.resourceId
++    identityPrincipalId: identity!.outputs.principalId
++    infrastructureSubnetId: network.outputs.hostingSubnetId
++  }
++  dependsOn: [
++    vault
++  ]
++}
++
++output clusterId string = cluster.id
++output poolName string = pool.name
++output parameterGroupId string = parameterGroup.id
++output webResourceId string = useContainerApps ? containerApp!.outputs.resourceId : web!.outputs.resourceId
++output webName string = useContainerApps ? containerApp!.outputs.name : web!.outputs.name
++output webHostname string = useContainerApps ? containerApp!.outputs.hostname : web!.outputs.defaultHostname
++output keyVaultName string = vault.outputs.name
++output appEgressIp string = network.outputs.egressIp
++output containerEnvironmentName string = useContainerApps ? containerApp!.outputs.environmentName : ''
++output registryEndpoint string = useContainerApps ? containerApp!.outputs.registryEndpoint : ''
++output infrastructureGroupName string = useContainerApps ? containerApp!.outputs.infrastructureGroupName : ''
+diff --git a/scripts/azure.mjs b/scripts/azure.mjs
+new file mode 100644
+index 0000000..eb2fe22
+--- /dev/null
++++ b/scripts/azure.mjs
+@@ -0,0 +1,171 @@
++import { execFile } from 'node:child_process';
++import { promisify } from 'node:util';
++import { isIPv4 } from 'node:net';
++import { setTimeout as sleep } from 'node:timers/promises';
++import { fileURLToPath } from 'node:url';
++
++const execute = promisify(execFile);
++export const horizonApi = '2026-10-01-preview';
++export const webApi = '2025-03-01';
++export const containerApi = '2025-07-01';
++
++export async function cli(command, args) {
++  const { stdout } = await execute(command, args, {
++    encoding: 'utf8', maxBuffer: 8 * 1024 * 1024,
++    cwd: fileURLToPath(new URL('..', import.meta.url)),
++  });
++  return stdout.trim();
++}
++
++export async function environment() {
++  return JSON.parse(await cli('azd', ['env', 'get-values', '--output', 'json']));
++}
++
++export async function setEnvironment(name, value) {
++  await cli('azd', ['env', 'set', name, value]);
++}
++
++export function requireValues(values, names) {
++  for (const name of names) {
++    if (typeof values[name] !== 'string' || !values[name]) {
++      throw new Error(`Missing ${name}. Select an azd environment and run azd up.`);
++    }
++  }
++}
++
++export function firewallIps(value) {
++  if (typeof value !== 'string') throw new Error('The application did not return valid outbound IPv4 addresses.');
++  const addresses = [...new Set(value.split(',').map(ip => ip.trim()).filter(Boolean))];
++  if (!addresses.length || addresses.some(ip => !isIPv4(ip) || ip === '0.0.0.0')) {
++    throw new Error('The application did not return valid outbound IPv4 addresses.');
++  }
++  return addresses;
++}
++
++export function hostingTarget(values, requireProvisioned = false) {
++  const target = values.AZURE_HOSTING_TARGET || 'containerapp';
++  if (!['containerapp', 'appservice'].includes(target)) {
++    throw new Error('AZURE_HOSTING_TARGET must be containerapp or appservice.');
++  }
++  const deployed = values.AZURE_DEPLOYED_HOSTING_TARGET;
++  if (deployed && deployed !== target) {
++    throw new Error('Hosting target differs from the provisioned environment. Select a fresh azd environment to change hosts.');
++  }
++  if (requireProvisioned && !deployed) {
++    throw new Error('Run azd provision before deploying this environment.');
++  }
++  return target;
++}
++
++export function containerDatabaseHost(resource, hostname) {
++  const template = resource.properties?.template;
++  if (template?.containers?.length !== 1 || template.containers[0].name !== 'web') {
++    throw new Error('Expected exactly one workshop web container before configuring PGHOST.');
++  }
++  const container = template.containers[0];
++  return {
++    properties: {
++      template: {
++        ...template,
++        containers: [{
++          ...container,
++          env: [...(container.env || []).filter(item => item.name !== 'PGHOST'),
++            { name: 'PGHOST', value: hostname }],
++        }],
++      },
++    },
++  };
++}
++
++export function needsRestart(pool) {
++  const status = pool.properties.parameterGroup?.syncStatus;
++  if (status === 'FailedToApply') throw new Error('HorizonDB failed to apply the parameter group.');
++  return status === 'PendingReboot';
++}
++
++export function readWriteHostname(endpoints) {
++  const matches = endpoints.value.filter(item =>
++    item.properties.scope === 'Cluster' && item.properties.role === 'ReadWrite');
++  const hostname = matches[0]?.properties.fullyQualifiedDomainName;
++  if (matches.length !== 1 || typeof hostname !== 'string'
++      || !/^[a-z0-9][a-z0-9.-]+[a-z0-9]$/i.test(hostname)) {
++    throw new Error('Expected exactly one service-generated cluster ReadWrite endpoint.');
++  }
++  return hostname;
++}
++
++export function azureClient(subscription) {
++  let token;
++  let tokenTime = 0;
++  async function request(method, url, body) {
++    if (!token || Date.now() - tokenTime > 20 * 60 * 1000) {
++      const credentials = JSON.parse(await cli('az', [
++        'account', 'get-access-token', '--subscription', subscription,
++        '--resource', 'https://management.azure.com/', '--output', 'json',
++      ]));
++      token = credentials.accessToken;
++      if (!token) throw new Error('Azure CLI did not return a management access token.');
++      tokenTime = Date.now();
++    }
++    const response = await fetch(url, {
++      method,
++      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
++      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
++      signal: AbortSignal.timeout(120000),
++    });
++    if (!response.ok) {
++      throw new Error(`ARM ${method} ${url}: HTTP ${response.status}: ${await response.text()}`);
++    }
++    return response;
++  }
++  return async function arm(method, resourceId, apiVersion, body) {
++    const response = await request(method,
++      `https://management.azure.com${resourceId}?api-version=${apiVersion}`, body);
++    const text = await response.text();
++    if (method !== 'GET') await waitForOperation(request, response);
++    return text ? JSON.parse(text) : null;
++  };
++}
++
++export async function waitForOperation(request, initialResponse) {
++  const asyncUrl = initialResponse.headers.get('azure-asyncoperation');
++  if (!asyncUrl && initialResponse.status !== 202) return;
++  const location = asyncUrl || initialResponse.headers.get('location');
++  if (!location) throw new Error('ARM accepted an operation without a polling URL.');
++  const url = new URL(location, 'https://management.azure.com');
++  if (url.origin !== 'https://management.azure.com') {
++    throw new Error('Refusing to send Azure credentials to an unexpected operation polling origin.');
++  }
++  const deadline = Date.now() + 30 * 60 * 1000;
++  let response = initialResponse;
++  while (Date.now() < deadline) {
++    const retryAfter = Number(response.headers.get('retry-after') ?? 10);
++    await sleep(Number.isFinite(retryAfter) ? Math.min(60, Math.max(1, retryAfter)) * 1000 : 10000);
++    response = await request('GET', url.href);
++    const text = await response.text();
++    const operation = text ? JSON.parse(text) : null;
++    const status = operation?.status ?? operation?.properties?.provisioningState;
++    if (['Failed', 'Canceled', 'Cancelled'].includes(status)) {
++      throw new Error(`ARM operation ${status}: ${JSON.stringify(operation.error ?? operation)}`);
++    }
++    if (status === 'Succeeded' || (!asyncUrl && response.status !== 202 && status === undefined)) return;
++    if (asyncUrl && typeof status !== 'string') {
++      throw new Error('ARM asynchronous operation did not return a status.');
++    }
++  }
++  throw new Error('ARM asynchronous operation did not finish within 30 minutes.');
++}
++
++export async function waitForResource(arm, resourceId, apiVersion, predicate, label) {
++  const deadline = Date.now() + 20 * 60 * 1000;
++  while (Date.now() < deadline) {
++    const resource = await arm('GET', resourceId, apiVersion);
++    if (['Failed', 'Canceled'].includes(resource.properties.provisioningState)
++        || resource.properties.state === 'Inaccessible') {
++      throw new Error(`${label} failed: ${JSON.stringify(resource.properties)}`);
++    }
++    if (predicate(resource)) return resource;
++    await sleep(10000);
++  }
++  throw new Error(`${label} did not become ready within 20 minutes.`);
++}
+diff --git a/scripts/bootstrap.mjs b/scripts/bootstrap.mjs
+new file mode 100644
+index 0000000..1299c5e
+--- /dev/null
++++ b/scripts/bootstrap.mjs
+@@ -0,0 +1,139 @@
++import { createRequire } from 'node:module';
++import { readFile } from 'node:fs/promises';
++import { createReadStream } from 'node:fs';
++import { pipeline } from 'node:stream/promises';
++import { setTimeout as sleep } from 'node:timers/promises';
++import { fileURLToPath } from 'node:url';
++
++const require = createRequire(new URL('../src/zava-designer-agent-ui-demo/package.json', import.meta.url));
++
++export async function databaseClient(values, user = 'workshop_admin', password = values.PG_ADMIN_PASSWORD) {
++  const { Client } = require('pg');
++  const ca = await readFile(new URL('../src/zava-designer-agent-ui-demo/certs/roots.pem', import.meta.url), 'utf8');
++  const deadline = Date.now() + 5 * 60 * 1000;
++  while (Date.now() < deadline) {
++    const client = new Client({
++      host: values.PGHOST, port: 5432, database: 'postgres', user, password,
++      connectionTimeoutMillis: 15000, statement_timeout: 180000,
++      ssl: { ca, rejectUnauthorized: true },
++    });
++    try {
++      await client.connect();
++      return client;
++    } catch (error) {
++      await client.end();
++      if (!['ETIMEDOUT', 'ECONNREFUSED', 'ECONNRESET', 'EHOSTUNREACH', '57P03'].includes(error.code)) {
++        throw error;
++      }
++      console.log(`Waiting for database connectivity (${error.code}).`);
++      await sleep(10000);
++    }
++  }
++  throw new Error('Database connection did not become ready within five minutes.');
++}
++
++function literal(value) {
++  if (typeof value !== 'string' || value.length < 24 || value.length > 128) {
++    throw new Error('Expected a generated application password of 24 to 128 characters.');
++  }
++  return `'${value.replaceAll("'", "''")}'`;
++}
++
++export async function bootstrap(client, values) {
++  const { from } = require('pg-copy-streams');
++  await client.query(await readFile(new URL('../sql/bootstrap.sql', import.meta.url), 'utf8'));
++  const modelsDeadline = Date.now() + 10 * 60 * 1000;
++  let models;
++  while (Date.now() < modelsDeadline) {
++    models = (await client.query(`
++      SELECT alias, model_name, status FROM model_registry.model_list_all()
++      WHERE alias IN ('default-embedding', 'default-chat', 'default-reranker')
++    `)).rows;
++    if (models.length === 3) break;
++    console.log(`Waiting for managed models (${models.length}/3 aliases registered).`);
++    await sleep(15000);
++  }
++  if (models.length !== 3) throw new Error('All three managed model aliases must be available.');
++
++  await client.query('BEGIN');
++  try {
++    const count = Number((await client.query('SELECT count(*) FROM workshop.products')).rows[0].count);
++    if (count === 0) {
++      await pipeline(
++        createReadStream(fileURLToPath(new URL('../data/products.csv', import.meta.url))),
++        client.query(from(`COPY workshop.products
++          (id, title, title_ja, category, price, rating, style, content)
++          FROM STDIN WITH (FORMAT csv, HEADER true, ENCODING 'UTF8')`)),
++      );
++    } else if (count !== 18) {
++      throw new Error(`Found ${count} products; expected the 18-product workshop catalog. Existing data was not replaced.`);
++    }
++    await client.query('COMMIT');
++  } catch (error) {
++    await client.query('ROLLBACK');
++    throw error;
++  }
++
++  await client.query(`
++    UPDATE workshop.products
++    SET embedding = ai.embed(text => content, model => 'default-embedding', dimensions => 1536)::vector(1536)
++    WHERE embedding IS NULL;
++    CREATE INDEX IF NOT EXISTS products_embedding_diskann_idx ON workshop.products
++      USING diskann (embedding vector_cosine_ops);
++    CREATE INDEX IF NOT EXISTS products_content_bm25_idx ON workshop.products
++      USING bm25 (content) WITH (text_config = 'english');
++    ANALYZE workshop.products;
++  `);
++  const graphExists = (await client.query(
++    "SELECT EXISTS(SELECT 1 FROM ag_catalog.ag_graph WHERE name = 'workshop_style') AS present",
++  )).rows[0].present;
++  if (!graphExists) {
++    await client.query('BEGIN');
++    try {
++      await client.query(await readFile(new URL('../sql/graph.sql', import.meta.url), 'utf8'));
++      await client.query('COMMIT');
++    } catch (error) {
++      await client.query('ROLLBACK');
++      throw error;
++    }
++  }
++
++  const role = (await client.query(`SELECT rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls
++    FROM pg_roles WHERE rolname = 'zava_app'`)).rows[0];
++  if (role && Object.values(role).some(Boolean)) {
++    throw new Error('Existing zava_app role has elevated privileges; refusing to reuse it.');
++  }
++  await client.query(role
++    ? `ALTER ROLE zava_app LOGIN PASSWORD ${literal(values.PG_APP_PASSWORD)}`
++    : `CREATE ROLE zava_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD ${literal(values.PG_APP_PASSWORD)}`);
++  await client.query(`
++    GRANT CONNECT ON DATABASE postgres TO zava_app;
++    GRANT USAGE ON SCHEMA public, workshop, ai, ag_catalog, workshop_style TO zava_app;
++    GRANT SELECT ON ALL TABLES IN SCHEMA workshop, workshop_style, ag_catalog TO zava_app;
++    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA ai TO zava_app;
++    GRANT EXECUTE ON FUNCTION ag_catalog.cypher(name, cstring, ag_catalog.agtype) TO zava_app;
++  `);
++  const checks = (await client.query(`
++    SELECT count(*)::integer AS products, count(embedding)::integer AS embedded,
++      min(vector_dims(embedding)) AS min_dimensions, max(vector_dims(embedding)) AS max_dimensions
++    FROM workshop.products
++  `)).rows[0];
++  const graphProducts = Number((await client.query(`
++    SELECT * FROM ag_catalog.cypher('workshop_style',
++      $$MATCH (p:Product) RETURN count(p)$$) AS (count ag_catalog.agtype)
++  `)).rows[0].count);
++  const indexes = (await client.query(`
++    SELECT i.relname AS name, am.amname AS method FROM pg_index AS idx
++    JOIN pg_class AS i ON i.oid = idx.indexrelid
++    JOIN pg_am AS am ON am.oid = i.relam
++    WHERE idx.indrelid = 'workshop.products'::regclass
++      AND idx.indisvalid AND idx.indisready AND am.amname IN ('diskann', 'bm25')
++  `)).rows;
++  if (checks.products !== 18 || checks.embedded !== 18 || checks.min_dimensions !== 1536
++      || checks.max_dimensions !== 1536 || graphProducts !== 18
++      || !indexes.some(index => index.method === 'diskann') || !indexes.some(index => index.method === 'bm25')) {
++    throw new Error(`Incomplete database initialization: ${JSON.stringify({ checks, graphProducts, indexes })}`);
++  }
++  const extensions = (await client.query('SELECT extname, extversion FROM pg_extension ORDER BY extname')).rows;
++  return { checks, graphProducts, indexes, extensions, models };
++}
+diff --git a/scripts/hooks.mjs b/scripts/hooks.mjs
+new file mode 100644
+index 0000000..173f993
+--- /dev/null
++++ b/scripts/hooks.mjs
+@@ -0,0 +1,243 @@
++import { randomBytes, X509Certificate } from 'node:crypto';
++import { isIPv4 } from 'node:net';
++import { mkdir, readFile, writeFile, chmod } from 'node:fs/promises';
++import { fileURLToPath } from 'node:url';
++import { setTimeout as sleep } from 'node:timers/promises';
++import {
++  azureClient, cli, containerApi, containerDatabaseHost, environment, firewallIps,
++  horizonApi, hostingTarget, needsRestart,
++  readWriteHostname, requireValues, setEnvironment, waitForResource, webApi,
++} from './azure.mjs';
++import { bootstrap, databaseClient } from './bootstrap.mjs';
++
++const appDirectory = fileURLToPath(new URL('../src/zava-designer-agent-ui-demo/', import.meta.url));
++
++async function prepare() {
++  if (Number(process.versions.node.split('.')[0]) < 24) throw new Error('Node.js 24 or newer is required.');
++  await cli('npm', ['--prefix', appDirectory, 'ci', '--no-audit', '--no-fund']);
++  await prepareCertificates();
++  console.log('Prepared dependencies and verified public TLS root certificates.');
++}
++
++async function prepareCertificates() {
++  const certificates = [
++    'https://www.microsoft.com/pkiops/certs/Microsoft%20RSA%20Root%20Certificate%20Authority%202017.crt',
++    'https://cacerts.digicert.com/DigiCertGlobalRootG2.crt',
++  ];
++  const roots = [];
++  for (const url of certificates) {
++    const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
++    if (!response.ok) throw new Error(`Certificate download failed: HTTP ${response.status}: ${url}`);
++    const certificate = new X509Certificate(Buffer.from(await response.arrayBuffer()));
++    if (!certificate.ca || Date.parse(certificate.validTo) < Date.now()) {
++      throw new Error(`Invalid or expired root certificate from ${url}.`);
++    }
++    roots.push(certificate.toString());
++  }
++  await mkdir(new URL('../src/zava-designer-agent-ui-demo/certs/', import.meta.url), { recursive: true });
++  await writeFile(new URL('../src/zava-designer-agent-ui-demo/certs/roots.pem', import.meta.url), roots.join('\n'));
++}
++
++async function preflight() {
++  const values = await environment();
++  requireValues(values, ['AZURE_ENV_NAME', 'AZURE_SUBSCRIPTION_ID', 'AZURE_LOCATION']);
++  const target = hostingTarget(values);
++  if (!/^[a-z0-9-]{1,60}$/i.test(values.AZURE_ENV_NAME)) throw new Error('Invalid azd environment name.');
++  await cli('az', ['account', 'show', '--subscription', values.AZURE_SUBSCRIPTION_ID, '--output', 'json']);
++  const groupName = `rg-${values.AZURE_ENV_NAME}`;
++  const exists = await cli('az', ['group', 'exists', '--name', groupName,
++    '--subscription', values.AZURE_SUBSCRIPTION_ID, '--output', 'tsv']);
++  if (exists === 'true') {
++    const group = JSON.parse(await cli('az', ['group', 'show', '--name', groupName,
++      '--subscription', values.AZURE_SUBSCRIPTION_ID, '--output', 'json']));
++    if (group.tags?.['azd-env-name'] !== values.AZURE_ENV_NAME
++        || group.tags?.purpose !== 'horizondb-workshop') {
++      throw new Error(`Refusing to modify an existing, unrelated resource group: ${groupName}.`);
++    }
++    requireValues(values, ['PG_ADMIN_PASSWORD', 'PG_APP_PASSWORD']);
++  }
++  let clientIp = values.AZURE_CLIENT_IP;
++  if (!clientIp) {
++    const response = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(20000) });
++    if (!response.ok) throw new Error(`Client IPv4 discovery failed: HTTP ${response.status}. Set AZURE_CLIENT_IP explicitly.`);
++    clientIp = (await response.json()).ip;
++  }
++  if (!isIPv4(clientIp) || clientIp === '0.0.0.0') {
++    throw new Error('AZURE_CLIENT_IP must be the client IPv4 address, not an allow-all-Azure rule.');
++  }
++  await setEnvironment('AZURE_CLIENT_IP', clientIp);
++  const envFile = new URL(`../.azure/${values.AZURE_ENV_NAME}/.env`, import.meta.url);
++  await chmod(envFile, 0o600);
++  await chmod(new URL(`../.azure/${values.AZURE_ENV_NAME}/`, import.meta.url), 0o700);
++  // Keep generated secrets out of child-process arguments and console output.
++  let envText = await readFile(envFile, 'utf8');
++  for (const name of ['PG_ADMIN_PASSWORD', 'PG_APP_PASSWORD']) {
++    if (!values[name]) {
++      envText = envText.replace(new RegExp(`^${name}=.*$`, 'gm'), '');
++      envText += `\n${name}="Z!${randomBytes(30).toString('base64url')}9a"\n`;
++    }
++  }
++  await writeFile(envFile, envText);
++  await setEnvironment('AZURE_HOSTING_TARGET', target);
++  await prepare();
++  console.log(`Prepared ${values.AZURE_ENV_NAME} in ${values.AZURE_LOCATION}; credentials are not displayed.`);
++}
++
++async function configure() {
++  const values = await environment();
++  const target = hostingTarget(values, true);
++  requireValues(values, ['AZURE_SUBSCRIPTION_ID', 'AZURE_HORIZONDB_CLUSTER_ID',
++    'AZURE_HORIZONDB_POOL_NAME', 'AZURE_HORIZONDB_PARAMETER_GROUP_ID', 'AZURE_WEB_RESOURCE_ID']);
++  const arm = azureClient(values.AZURE_SUBSCRIPTION_ID);
++  const poolId = `${values.AZURE_HORIZONDB_CLUSTER_ID}/pools/${values.AZURE_HORIZONDB_POOL_NAME}`;
++  const ready = resource => resource.properties.state === 'Ready'
++    && resource.properties.provisioningState === 'Succeeded';
++  let pool = await waitForResource(arm, poolId, horizonApi, ready, 'HorizonDB pool');
++  if (pool.properties.parameterGroup?.parameterGroupResourceId?.toLowerCase()
++      !== values.AZURE_HORIZONDB_PARAMETER_GROUP_ID.toLowerCase()) {
++    console.log('Assigning the AI extension parameter group.');
++    await arm('PATCH', poolId, horizonApi, { properties: { parameterGroup: {
++      parameterGroupResourceId: values.AZURE_HORIZONDB_PARAMETER_GROUP_ID, applyMethod: 'Immediate',
++    } } });
++    pool = await waitForResource(arm, poolId, horizonApi,
++      resource => ready(resource)
++        && resource.properties.parameterGroup?.parameterGroupResourceId?.toLowerCase()
++          === values.AZURE_HORIZONDB_PARAMETER_GROUP_ID.toLowerCase()
++        && ['InSync', 'PendingReboot', 'FailedToApply']
++          .includes(resource.properties.parameterGroup?.syncStatus), 'Parameter group assignment');
++  }
++  if (needsRestart(pool)) {
++    console.log('Restarting HorizonDB to apply static extension parameters.');
++    await arm('POST', `${poolId}/restart`, horizonApi);
++    await waitForResource(arm, poolId, horizonApi,
++      resource => ready(resource) && resource.properties.parameterGroup?.syncStatus === 'InSync',
++      'HorizonDB restart');
++  }
++  const cluster = await arm('GET', values.AZURE_HORIZONDB_CLUSTER_ID, horizonApi);
++  if (cluster.properties.aiModelManagement !== 'Enabled') {
++    console.log('Enabling managed embedding, chat and reranker models.');
++    await arm('PATCH', values.AZURE_HORIZONDB_CLUSTER_ID, horizonApi,
++      { properties: { aiModelManagement: 'Enabled' } });
++    await waitForResource(arm, values.AZURE_HORIZONDB_CLUSTER_ID, horizonApi,
++      resource => ready(resource) && resource.properties.aiModelManagement === 'Enabled', 'AI Model Management');
++  }
++  const endpoints = await arm('GET', `${values.AZURE_HORIZONDB_CLUSTER_ID}/endpoints`, horizonApi);
++  const hostname = readWriteHostname(endpoints);
++  const web = await arm('GET', values.AZURE_WEB_RESOURCE_ID,
++    target === 'containerapp' ? containerApi : webApi);
++  const addresses = firewallIps(values.AZURE_APP_EGRESS_IP);
++  const ruleNames = new Set(addresses.map(ip => `app-egress-${ip.replaceAll('.', '-')}`));
++  for (const ip of addresses) {
++    await arm('PUT', `${poolId}/firewallRules/app-egress-${ip.replaceAll('.', '-')}`, horizonApi,
++      { properties: { startIpAddress: ip, endIpAddress: ip } });
++  }
++  const rules = await arm('GET', `${poolId}/firewallRules`, horizonApi);
++  for (const rule of rules.value) {
++    if (rule.name.startsWith('app-egress-') && !ruleNames.has(rule.name)) {
++      await arm('DELETE', rule.id, horizonApi);
++    }
++  }
++  await setEnvironment('PGHOST', hostname);
++  if (target === 'containerapp') {
++    await arm('PATCH', values.AZURE_WEB_RESOURCE_ID, containerApi, containerDatabaseHost(web, hostname));
++    await waitForResource(arm, values.AZURE_WEB_RESOURCE_ID, containerApi,
++      resource => resource.properties.provisioningState === 'Succeeded', 'Container Apps configuration');
++  } else {
++    const settings = await arm('POST', `${values.AZURE_WEB_RESOURCE_ID}/config/appsettings/list`, webApi);
++    await arm('PUT', `${values.AZURE_WEB_RESOURCE_ID}/config/appsettings`, webApi,
++      { properties: { ...settings.properties, PGHOST: hostname } });
++    await arm('POST', `${values.AZURE_WEB_RESOURCE_ID}/config/configreferences/appsettings/refresh`, webApi);
++  }
++  console.log('Configured the service-generated database endpoint and narrowly scoped app firewall rules.');
++}
++
++async function seed() {
++  const values = await environment();
++  hostingTarget(values, true);
++  requireValues(values, ['PGHOST', 'PG_ADMIN_PASSWORD', 'PG_APP_PASSWORD']);
++  const client = await databaseClient(values);
++  let result;
++  try {
++    result = await bootstrap(client, values);
++  } finally {
++    await client.end();
++  }
++  const appClient = await databaseClient(values, 'zava_app', values.PG_APP_PASSWORD);
++  try {
++    await appClient.query('SET search_path = ag_catalog, public');
++    await appClient.query("SELECT count(*) FROM workshop.products");
++    await appClient.query(`SELECT * FROM ag_catalog.cypher('workshop_style',
++      $$MATCH (p:Product) RETURN count(p)$$) AS (count ag_catalog.agtype)`);
++  } finally {
++    await appClient.end();
++  }
++  await writeFile(new URL(`../.azure/${values.AZURE_ENV_NAME}/database-check.json`, import.meta.url),
++    `${JSON.stringify(result, null, 2)}\n`);
++  console.log('Verified 18 embeddings, DiskANN/BM25 indexes, AGE graph and the restricted application role.');
++}
++
++async function verify() {
++  const values = await environment();
++  requireValues(values, ['SERVICE_WEB_ENDPOINT']);
++  const endpoint = values.SERVICE_WEB_ENDPOINT;
++  const deadline = Date.now() + 10 * 60 * 1000;
++  let health;
++  let lastStatus;
++  while (Date.now() < deadline) {
++    const response = await fetch(`${endpoint}/api/health`, { signal: AbortSignal.timeout(30000) });
++    lastStatus = response.status;
++    if (response.ok) {
++      health = await response.json();
++      if (health.status === 'ok' && Number(health.products) === 18 && Number(health.embedded) === 18
++          && health.graph_ready === true) break;
++      throw new Error(`Invalid health response: ${JSON.stringify(health)}`);
++    }
++    console.log(`Waiting for application startup (HTTP ${lastStatus}).`);
++    await sleep(15000);
++  }
++  if (!health) throw new Error(`Application was not healthy within ten minutes (last HTTP ${lastStatus}).`);
++  const page = await fetch(endpoint, { signal: AbortSignal.timeout(30000) });
++  const html = await page.text();
++  const script = html.match(/<script[^>]+src="([^"]+)"/)?.[1];
++  if (!page.ok || !html.includes('id="root"') || !script) throw new Error('React application was not served.');
++  const bundle = await fetch(new URL(script, endpoint), { signal: AbortSignal.timeout(30000) });
++  if (!bundle.ok || !(await bundle.text()).includes('/api/design-room')) throw new Error('React bundle is missing.');
++  const invalid = await fetch(`${endpoint}/api/design-room`, {
++    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ budget: -1 }),
++    signal: AbortSignal.timeout(30000),
++  });
++  if (invalid.status !== 400) throw new Error('Invalid input must be rejected without mock success.');
++  const budget = 2000;
++  const response = await fetch(`${endpoint}/api/design-room`, {
++    method: 'POST', headers: { 'content-type': 'application/json' },
++    body: JSON.stringify({ theme: 'scandinavian', budget,
++      priorities: ['seating', 'tables', 'lighting', 'rugs', 'storage', 'decor'] }),
++    signal: AbortSignal.timeout(180000),
++  });
++  const design = await response.json();
++  if (!response.ok) throw new Error(`Live design failed: HTTP ${response.status}: ${JSON.stringify(design)}`);
++  const tools = ['analyze_room_brief', 'get_semantic_context', 'hybrid_search_products',
++    'find_related_products_graph', 'filter_products', 'curate_room_picks'];
++  if (!Array.isArray(design.trace) || design.trace.length !== tools.length
++      || design.trace.some((step, index) => step.tool !== tools[index] || !step.sql)
++      || !Array.isArray(design.products) || design.products.length === 0 || design.products.length > 6
++      || design.products.some(product => !Number.isSafeInteger(product.id) || product.id < 1 || product.id > 18
++        || !Number.isFinite(product.price) || product.price <= 0)
++      || new Set(design.products.map(product => product.category)).size !== design.products.length
++      || design.products.reduce((sum, product) => sum + Math.round(product.price * 100), 0) > budget * 100) {
++    throw new Error('The live response failed the six-stage trace, catalog or budget checks.');
++  }
++  await writeFile(new URL(`../.azure/${values.AZURE_ENV_NAME}/verification.json`, import.meta.url),
++    `${JSON.stringify({ verifiedAt: new Date().toISOString(), health, design }, null, 2)}\n`);
++  console.log(`Verified React UI and a live six-stage HorizonDB design at ${endpoint}.`);
++}
++
++const actions = { prepare, preflight, configure, seed, verify };
++const action = actions[process.argv[2]];
++if (!action) throw new Error('Specify prepare, preflight, configure, seed or verify.');
++try {
++  await action();
++} catch (error) {
++  console.error(`Zava ${process.argv[2]} failed: ${error.message}`);
++  process.exitCode = 1;
++}
+diff --git a/scripts/psql.mjs b/scripts/psql.mjs
+new file mode 100644
+index 0000000..5c0c823
+--- /dev/null
++++ b/scripts/psql.mjs
+@@ -0,0 +1,25 @@
++import { spawn } from 'node:child_process';
++import { fileURLToPath } from 'node:url';
++import { environment, requireValues } from './azure.mjs';
++
++const values = await environment();
++requireValues(values, ['PGHOST', 'PG_ADMIN_PASSWORD']);
++const child = spawn('psql', [
++  '--host', values.PGHOST, '--port', '5432', '--username', 'workshop_admin',
++  '--dbname', 'postgres', '--set', 'ON_ERROR_STOP=1',
++], {
++  stdio: 'inherit',
++  env: {
++    ...process.env, PGPASSWORD: values.PG_ADMIN_PASSWORD, PGSSLMODE: 'verify-full',
++    PGSSLROOTCERT: fileURLToPath(new URL('../src/zava-designer-agent-ui-demo/certs/roots.pem', import.meta.url)),
++  },
++});
++process.on('SIGINT', () => {});
++child.on('error', error => {
++  console.error(`psql could not start: ${error.message}. Install PostgreSQL client tools first.`);
++  process.exitCode = 1;
++});
++child.on('exit', (code, signal) => {
++  if (signal) console.error(`psql terminated with signal ${signal}.`);
++  process.exitCode = code ?? 1;
++});
+diff --git a/sql/bootstrap.sql b/sql/bootstrap.sql
+new file mode 100644
+index 0000000..7912c35
+--- /dev/null
++++ b/sql/bootstrap.sql
+@@ -0,0 +1,40 @@
++CREATE EXTENSION IF NOT EXISTS vector;
++CREATE EXTENSION IF NOT EXISTS pg_diskann;
++CREATE EXTENSION IF NOT EXISTS pg_textsearch;
++CREATE EXTENSION IF NOT EXISTS azure_ai;
++CREATE EXTENSION IF NOT EXISTS pg_durable;
++CREATE EXTENSION IF NOT EXISTS age;
++SET search_path = ag_catalog, public;
++
++DO $$
++DECLARE
++    installed text;
++BEGIN
++    SELECT extversion INTO installed FROM pg_extension WHERE extname = 'azure_ai';
++    IF string_to_array(installed, '.')::integer[] < ARRAY[2, 5, 6] THEN
++        RAISE EXCEPTION 'azure_ai >= 2.5.6 is required; installed: %.', installed;
++    END IF;
++    IF NOT EXISTS (
++        SELECT 1 FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
++        WHERE n.nspname = 'ai' AND p.proname = 'search'
++          AND p.proargnames @> ARRAY['embedding_model', 'rerank_model', 'ctid']
++    ) THEN
++        RAISE EXCEPTION 'The native ai.search ctid API is required.';
++    END IF;
++END $$;
++
++CREATE SCHEMA IF NOT EXISTS workshop;
++CREATE TABLE IF NOT EXISTS workshop.products (
++    id integer PRIMARY KEY,
++    title text NOT NULL,
++    title_ja text NOT NULL,
++    category text NOT NULL CHECK (category IN
++        ('seating', 'tables', 'lighting', 'rugs', 'storage', 'decor')),
++    price numeric(10, 2) NOT NULL CHECK (price > 0),
++    rating real NOT NULL CHECK (rating BETWEEN 0 AND 5),
++    style text NOT NULL CHECK (style IN ('scandinavian', 'mid-century', 'industrial')),
++    content text NOT NULL
++);
++COMMENT ON TABLE workshop.products IS 'Original fictional furniture catalog for the HorizonDB workshop.';
++COMMENT ON COLUMN workshop.products.content IS 'English searchable description; Japanese display title is title_ja.';
++ALTER TABLE workshop.products ADD COLUMN IF NOT EXISTS embedding vector(1536);
+diff --git a/sql/graph.sql b/sql/graph.sql
+new file mode 100644
+index 0000000..782f0c4
+--- /dev/null
++++ b/sql/graph.sql
+@@ -0,0 +1,30 @@
++SET search_path = ag_catalog, public;
++SELECT ag_catalog.create_graph('workshop_style');
++SELECT * FROM ag_catalog.cypher('workshop_style', $$
++    CREATE (:Style {name: 'scandinavian'}),
++           (:Style {name: 'mid-century'}),
++           (:Style {name: 'industrial'})
++$$) AS (node ag_catalog.agtype);
++
++DO $$
++DECLARE
++    product record;
++    statement text;
++BEGIN
++    FOR product IN SELECT id, style FROM workshop.products ORDER BY id LOOP
++        statement := format(
++            'MATCH (s:Style {name: %s}) CREATE (:Product {id: %s})-[:HAS_STYLE]->(s)',
++            to_json(product.style)::text, product.id
++        );
++        EXECUTE format(
++            'SELECT * FROM ag_catalog.cypher(%L, $cypher$%s$cypher$) AS (node ag_catalog.agtype)',
++            'workshop_style', statement
++        );
++    END LOOP;
++END $$;
++
++SELECT * FROM ag_catalog.cypher('workshop_style', $$
++    MATCH (a:Style {name: 'scandinavian'}), (b:Style {name: 'mid-century'}),
++          (c:Style {name: 'industrial'})
++    CREATE (a)-[:SIMILAR_TO]->(b), (b)-[:SIMILAR_TO]->(c)
++$$) AS (edge ag_catalog.agtype);
+diff --git a/src/zava-designer-agent-ui-demo/.dockerignore b/src/zava-designer-agent-ui-demo/.dockerignore
+new file mode 100644
+index 0000000..81dee8c
+--- /dev/null
++++ b/src/zava-designer-agent-ui-demo/.dockerignore
+@@ -0,0 +1,18 @@
++**
++!Dockerfile
++!package.json
++!package-lock.json
++!index.html
++!vite.config.*
++!server.mjs
++!agent.mjs
++!src/
++!src/**
++!public/
++!public/**
++!certs/
++!certs/roots.pem
++**/.env*
++**/node_modules
++**/.azure
++**/.git
+diff --git a/src/zava-designer-agent-ui-demo/Dockerfile b/src/zava-designer-agent-ui-demo/Dockerfile
+new file mode 100644
+index 0000000..593586c
+--- /dev/null
++++ b/src/zava-designer-agent-ui-demo/Dockerfile
+@@ -0,0 +1,20 @@
++FROM node:24-bookworm-slim AS build
++WORKDIR /app
++COPY package.json package-lock.json ./
++RUN npm ci --no-audit --no-fund
++COPY index.html vite.config.* ./
++COPY src/ src/
++COPY public/ public/
++RUN npm run build
++
++FROM node:24-bookworm-slim AS runtime
++ENV NODE_ENV=production PORT=8080
++WORKDIR /app
++COPY package.json package-lock.json ./
++RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
++COPY server.mjs agent.mjs ./
++COPY certs/roots.pem certs/roots.pem
++COPY --from=build /app/dist/ dist/
++USER node
++EXPOSE 8080
++CMD ["node", "server.mjs"]
+diff --git a/src/zava-designer-agent-ui-demo/agent.mjs b/src/zava-designer-agent-ui-demo/agent.mjs
+new file mode 100644
+index 0000000..32a2529
+--- /dev/null
++++ b/src/zava-designer-agent-ui-demo/agent.mjs
+@@ -0,0 +1,165 @@
++export const categories = ['seating', 'tables', 'lighting', 'rugs', 'storage', 'decor'];
++
++export class InputError extends Error {
++  status = 400;
++}
++
++export function validateBrief(body) {
++  const { theme = 'scandinavian', budget = 2000, priorities = categories } = body;
++  if (typeof theme !== 'string' || !theme.trim() || theme.length > 80) {
++    throw new InputError('Theme must contain between 1 and 80 characters.');
++  }
++  if (typeof budget !== 'number' || !Number.isFinite(budget) || budget < 1 || budget > 10000) {
++    throw new InputError('Budget must be between 1 and 10000 USD.');
++  }
++  if (!Array.isArray(priorities) || priorities.length === 0
++      || priorities.some(category => !categories.includes(category))) {
++    throw new InputError('Choose at least one supported furniture category.');
++  }
++  return { theme: theme.trim(), budget, priorities: [...new Set(priorities)] };
++}
++
++export function selectPicks(rankedProducts, budget, priorities) {
++  const picks = [];
++  const selectedCategories = new Set();
++  const budgetCents = Math.round(budget * 100);
++  let totalCents = 0;
++  for (const product of rankedProducts) {
++    const priceCents = Math.round(Number(product.price) * 100);
++    if (!Number.isFinite(priceCents) || priceCents <= 0) {
++      throw new Error(`Invalid catalog price for product ${product.id}.`);
++    }
++    if (!priorities.includes(product.category) || selectedCategories.has(product.category)
++        || totalCents + priceCents > budgetCents) continue;
++    picks.push({
++      id: product.id, name: product.title, brand: 'Zava Workshop',
++      price: priceCents / 100, category: product.category, rating: product.rating,
++      reviews: 0, image: '/sample-product.svg',
++      reason: `AI rerank position ${product.rank}; fictional ${product.style} catalog product.`,
++    });
++    selectedCategories.add(product.category);
++    totalCents += priceCents;
++  }
++  return { products: picks, totalCost: totalCents / 100 };
++}
++
++const roomSchema = {
++  name: 'room_brief', strict: true,
++  schema: {
++    type: 'object',
++    properties: {
++      style: { type: 'string' },
++      colors: { type: 'array', items: { type: 'string' } },
++      gaps: { type: 'array', items: { type: 'string' } },
++      mood: { type: 'string' },
++    },
++    required: ['style', 'colors', 'gaps', 'mood'], additionalProperties: false,
++  },
++};
++
++export async function runAgent(client, brief) {
++  const trace = [];
++  async function step(tool, sql, params, input, describe) {
++    const started = performance.now();
++    try {
++      const { rows } = await client.query(sql, params);
++      trace.push({ tool, sql, input, output: describe(rows), duration: Math.round(performance.now() - started) });
++      return rows;
++    } catch (cause) {
++      throw new Error(`Stage "${tool}" failed. Check database setup, managed models and server logs.`, { cause });
++    }
++  }
++
++  const analysisRows = await step('analyze_room_brief', `
++    SELECT ai.generate(
++      prompt => $1, json_schema => $2::jsonb, model => 'default-chat',
++      system_prompt => 'Create an English interior design brief from text only. Do not claim to see a photo.'
++    ) AS analysis
++  `, [`Style: ${brief.theme}. Furnish a living room with ${brief.priorities.join(', ')}.`,
++    JSON.stringify(roomSchema)], { theme: brief.theme, mode: 'text-only; no image inference' },
++  rows => rows[0].analysis);
++  const analysis = analysisRows[0].analysis;
++  if (!analysis || typeof analysis.style !== 'string' || !Array.isArray(analysis.colors)
++      || !Array.isArray(analysis.gaps) || typeof analysis.mood !== 'string') {
++    throw new Error('Managed chat model returned an invalid room brief.');
++  }
++  const roomDescription = `${analysis.style}; ${analysis.colors.join(' ')}; ${analysis.mood}`;
++  const searchQuery = `${brief.theme} ${roomDescription} living room furniture`;
++
++  await step('get_semantic_context', `
++    SELECT a.attname AS column_name,
++           pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
++           col_description(a.attrelid, a.attnum) AS comment
++    FROM pg_attribute AS a
++    WHERE a.attrelid = 'workshop.products'::regclass
++      AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum
++  `, [], { table: 'workshop.products' }, rows => ({
++    columns_inspected: rows.length,
++    key_columns: rows.filter(row => row.comment).map(row => `${row.column_name}: ${row.comment}`),
++  }));
++
++  const retrieved = await step('hybrid_search_products', `
++    SELECT p.*, s.match_type, s.score
++    FROM ai.search(
++      query => $1, source_table => 'workshop.products', search_type => 'hybrid',
++      content_column => 'content', embedding_column => 'embedding',
++      embedding_model => 'default-embedding', top_k => 18, rerank => false
++    ) AS s JOIN workshop.products AS p ON p.ctid = s.ctid
++    ORDER BY s.score DESC, p.id
++  `, [searchQuery], { query: searchQuery, rerank: false, top_k: 18 },
++  rows => ({
++    total_results: rows.length, match_types: [...new Set(rows.map(row => row.match_type))],
++    method: 'BM25 + DiskANN + RRF; ai.rank runs at the final stage',
++  }));
++  if (retrieved.length === 0) throw new Error('Hybrid search returned no candidates. Check embeddings and indexes.');
++
++  const seedIds = retrieved.slice(0, 5).map(row => row.id);
++  if (seedIds.some(id => !Number.isSafeInteger(id) || id < 1)) {
++    throw new Error('Graph seeds must be positive integer catalog IDs.');
++  }
++  // AGE requires a constant Cypher string; only validated integer IDs are interpolated.
++  const related = await step('find_related_products_graph', `
++    SELECT p.* FROM ag_catalog.cypher('workshop_style', $cypher$
++      MATCH (seed:Product)-[:HAS_STYLE]->(s:Style)
++            -[:SIMILAR_TO]-(related:Style)<-[:HAS_STYLE]-(rec:Product)
++      WHERE seed.id IN [${seedIds.join(',')}] AND NOT rec.id IN [${seedIds.join(',')}]
++      RETURN DISTINCT rec.id
++    $cypher$) AS g(id ag_catalog.agtype)
++    JOIN workshop.products AS p ON p.id = (g.id::text)::integer
++    ORDER BY p.id
++  `, [], { source_product_ids: seedIds }, rows => ({
++    related_found: rows.length, method: 'Actual Apache AGE SIMILAR_TO graph traversal',
++  }));
++
++  const ids = [...new Set([...retrieved, ...related].map(row => row.id))];
++  const eligible = await step('filter_products', `
++    SELECT id, title, price, rating, category, style, content FROM workshop.products
++    WHERE id = ANY($1::integer[]) AND category = ANY($2::text[])
++      AND price <= $3 AND rating >= 4.0 ORDER BY id
++  `, [ids, brief.priorities, brief.budget / brief.priorities.length],
++  { budget: brief.budget, categories: brief.priorities, min_rating: 4.0 },
++  rows => ({ matched: rows.length, filtered_out: ids.length - rows.length }));
++  if (eligible.length === 0) {
++    throw new InputError('No catalog products fit this budget and category selection. Increase the budget.');
++  }
++
++  const ranked = await step('curate_room_picks', `
++    SELECT * FROM ai.rank(
++      query => $1, data => $2::text[], ids => $3::integer[], model => 'default-reranker'
++    ) ORDER BY rank
++  `, [roomDescription, eligible.map(row => row.content), eligible.map(row => row.id)],
++  { candidates: eligible.length, room_style: roomDescription },
++  rows => ({ ranked_candidates: rows.length, method: 'Managed semantic reranker; no boosted IDs' }));
++  const catalog = new Map(eligible.map(row => [row.id, row]));
++  if (ranked.length !== eligible.length || new Set(ranked.map(row => row.id)).size !== eligible.length
++      || ranked.some(row => !catalog.has(row.id) || !Number.isFinite(Number(row.score)))) {
++    throw new Error('Reranker returned an incomplete or invalid candidate set.');
++  }
++  const selection = selectPicks(ranked.map(row => ({ ...catalog.get(row.id), rank: row.rank })),
++    brief.budget, brief.priorities);
++  if (selection.products.length === 0) throw new InputError('No products fit the budget.');
++  trace.at(-1).output = {
++    ...trace.at(-1).output, final_picks: selection.products.length, total_cost: selection.totalCost,
++  };
++  return { products: selection.products, trace, searchQuery, roomDescription };
++}
+diff --git a/src/zava-designer-agent-ui-demo/certs/roots.pem b/src/zava-designer-agent-ui-demo/certs/roots.pem
+new file mode 100644
+index 0000000..cf92096
+--- /dev/null
++++ b/src/zava-designer-agent-ui-demo/certs/roots.pem
+@@ -0,0 +1,56 @@
++-----BEGIN CERTIFICATE-----
++MIIFqDCCA5CgAwIBAgIQHtOXCV/YtLNHcB6qvn9FszANBgkqhkiG9w0BAQwFADBl
++MQswCQYDVQQGEwJVUzEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9uMTYw
++NAYDVQQDEy1NaWNyb3NvZnQgUlNBIFJvb3QgQ2VydGlmaWNhdGUgQXV0aG9yaXR5
++IDIwMTcwHhcNMTkxMjE4MjI1MTIyWhcNNDIwNzE4MjMwMDIzWjBlMQswCQYDVQQG
++EwJVUzEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9uMTYwNAYDVQQDEy1N
++aWNyb3NvZnQgUlNBIFJvb3QgQ2VydGlmaWNhdGUgQXV0aG9yaXR5IDIwMTcwggIi
++MA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDKW76UM4wplZEWCpW9R2LBifOZ
++Nt9GkMml7Xhqb0eRaPgnZ1AzHaGm++DlQ6OEAlcBXZxIQIJTELy/xztokLaCLeX0
++ZdDMbRnMlfl7rEqUrQ7eS0MdhweSE5CAg2Q1OQT85elss7YfUJQ4ZVBcF0a5toW1
++HLUX6NZFndiyJrDKxHBKrmCk3bPZ7Pw71VdyvD/IybLeS2v4I2wDwAW9lcfNcztm
++gGTjGqwu+UcF8ga2m3P1eDNbx6H7JyqhtJqRjJHTOoI+dkC0zVJhUXAoP8XFWvLJ
++jEm7FFtNyP9nTUwSlq31/niol4fX/V4ggNyhSyL71Imtus5Hl0dVe49FyGcohJUc
++aDDv70ngNXtk55iwlNpNhTs+VcQor1fznhPbRiefHqJeRIOkpcrVE7NLP8TjwuaG
++YaRSMLl6IE9vDzhTyzMMEyuP1pq9KsgtsRx9S1HKR9FIJ3Jdh+vVReZIZZ2vUpC6
++W6IYZVcSn2i51BVrlMRpIpj0M+Dt+VGOQVDJNE92kKz8OMHY4Xu54+OU4UZpyw4K
++UGsTuqwPN1q3ErWQgR5WrlcihtnJ0tHXUeOrO8ZV/R4O03QK0dqq6mm4lyiPSMQH
+++FJDOvTKVTUssKZqwJz58oHhEmrARdlns87/I6KJClTUFLkqqNfs+avNJVgyeY+Q
++W5g5xAgGwax/Dj0ApQIDAQABo1QwUjAOBgNVHQ8BAf8EBAMCAYYwDwYDVR0TAQH/
++BAUwAwEB/zAdBgNVHQ4EFgQUCctZf4aycI8awznjwNnpv7tNsiMwEAYJKwYBBAGC
++NxUBBAMCAQAwDQYJKoZIhvcNAQEMBQADggIBAKyvPl3CEZaJjqPnktaXFbgToqZC
++LgLNFgVZJ8og6Lq46BrsTaiXVq5lQ7GPAJtSzVXNUzltYkyLDVt8LkS/gxCP81OC
++gMNPOsduET/m4xaRhPtthH80dK2Jp86519efhGSSvpWhrQlTM93uCupKUY5vVau6
++tZRGrox/2KJQJWVggEbbMwSubLWYdFQl3JPk+ONVFT24bcMKpBLBaYVu32TxU5nh
++SnUgnZUP5NbcA/FZGOhHibJXWpS2qdgXKxdJ5XbLwVaZOjex/2kskZGT4d9Mozd2
++TaGf+G0eHdP67Pv0RR0Tbc/3WeUiJ3IrhvNXuzDtJE3cfVa7o7P4NHmJweDyAmH3
++pvwPuxwXC65B2Xy9J6P9LjrRk5Sxcx0ki69bIImtt2dmefU6xqaWM/5TkshGsRGR
++xpl/j8nWZjEgQRCHLQzWwa80mMpkg/sTV9HB8Dx6jKXB/ZUhoHHBk2dxEuqPiApp
++GWSZI1b7rCoucL5mxAyE7+WL85MB+GqQk2dLsmijtWKP6T+MejteD+eMuMZ87zf9
++dOLITzNy4ZQ5bb0Sr74MTnB8G2+NszKTc0QWbej09+CVgI+WXTik9KveCjCHk9hN
++AHFiRSdLOkKEW39lt2c0Ui2cFmuqqNh7o0JMcccMyj6D5KbvtwEwXlGjefVwaaZB
++RA+GsCyRxj3qrg+E
++-----END CERTIFICATE-----
++
++-----BEGIN CERTIFICATE-----
++MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh
++MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
++d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH
++MjAeFw0xMzA4MDExMjAwMDBaFw0zODAxMTUxMjAwMDBaMGExCzAJBgNVBAYTAlVT
++MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j
++b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IEcyMIIBIjANBgkqhkiG
++9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuzfNNNx7a8myaJCtSnX/RrohCgiN9RlUyfuI
++2/Ou8jqJkTx65qsGGmvPrC3oXgkkRLpimn7Wo6h+4FR1IAWsULecYxpsMNzaHxmx
++1x7e/dfgy5SDN67sH0NO3Xss0r0upS/kqbitOtSZpLYl6ZtrAGCSYP9PIUkY92eQ
++q2EGnI/yuum06ZIya7XzV+hdG82MHauVBJVJ8zUtluNJbd134/tJS7SsVQepj5Wz
++tCO7TG1F8PapspUwtP1MVYwnSlcUfIKdzXOS0xZKBgyMUNGPHgm+F6HmIcr9g+UQ
++vIOlCsRnKPZzFBQ9RnbDhxSJITRNrw9FDKZJobq7nMWxM4MphQIDAQABo0IwQDAP
++BgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBhjAdBgNVHQ4EFgQUTiJUIBiV
++5uNu5g/6+rkS7QYXjzkwDQYJKoZIhvcNAQELBQADggEBAGBnKJRvDkhj6zHd6mcY
++1Yl9PMWLSn/pvtsrF9+wX3N3KjITOYFnQoQj8kVnNeyIv/iPsGEMNKSuIEyExtv4
++NeF22d+mQrvHRAiGfzZ0JFrabA0UWTW98kndth/Jsw1HKj2ZL7tcu7XUIOGZX1NG
++Fdtom/DzMNU+MeKNhJ7jitralj41E6Vf8PlwUHBHQRFXGU7Aj64GxJUTFy8bJZ91
++8rGOmaFvE7FBcf6IKshPECBV1/MUReXgRPTqh5Uykw7+U0b6LJ3/iyK5S9kJRaTe
++pLiaWN0bfVKfjllDiIGknibVb63dDcY3fe0Dkhvld1927jyNxF1WW6LZZm6zNTfl
++MrY=
++-----END CERTIFICATE-----
+diff --git a/src/zava-designer-agent-ui-demo/package-lock.json b/src/zava-designer-agent-ui-demo/package-lock.json
+index 1f50041..44397ce 100644
+--- a/src/zava-designer-agent-ui-demo/package-lock.json
++++ b/src/zava-designer-agent-ui-demo/package-lock.json
+@@ -12,6 +12,7 @@
+         "dotenv": "^16.4.5",
+         "express": "^4.22.2",
+         "pg": "^8.13.0",
++        "pg-copy-streams": "^7.0.0",
+         "react": "^18.3.1",
+         "react-dom": "^18.3.1"
+       },
+@@ -19,6 +20,9 @@
+         "@vitejs/plugin-react": "^4.3.4",
+         "concurrently": "^10.0.0",
+         "vite": "^6.0.0"
++      },
++      "engines": {
++        "node": ">=24"
+       }
+     },
+     "node_modules/@babel/code-frame": {
+@@ -2276,6 +2280,12 @@
+       "integrity": "sha512-U7qg+bpswf3Cs5xLzRqbXbQl85ng0mfSV/J0nnA31MCLgvEaAo7CIhmeyrmJpOr7o+zm0rXK+hNnT5l9RHkCkQ==",
+       "license": "MIT"
+     },
++    "node_modules/pg-copy-streams": {
++      "version": "7.0.0",
++      "resolved": "https://registry.npmjs.org/pg-copy-streams/-/pg-copy-streams-7.0.0.tgz",
++      "integrity": "sha1-Rlm8ytSeqw1/SyXm4z42qAEHv4I=",
++      "license": "MIT"
++    },
+     "node_modules/pg-int8": {
+       "version": "1.0.1",
+       "resolved": "https://registry.npmjs.org/pg-int8/-/pg-int8-1.0.1.tgz",
+diff --git a/src/zava-designer-agent-ui-demo/package.json b/src/zava-designer-agent-ui-demo/package.json
+index fb26fb0..5bd917d 100644
+--- a/src/zava-designer-agent-ui-demo/package.json
++++ b/src/zava-designer-agent-ui-demo/package.json
+@@ -5,8 +5,9 @@
+   "type": "module",
+   "scripts": {
+     "dev": "vite",
+-    "server": "node server.js",
+-    "dev:full": "concurrently \"node server.js\" \"vite\"",
++    "start": "node server.mjs",
++    "server": "node server.mjs",
++    "dev:full": "concurrently \"node server.mjs\" \"vite\"",
+     "build": "vite build",
+     "preview": "vite preview"
+   },
+@@ -15,9 +16,13 @@
+     "dotenv": "^16.4.5",
+     "express": "^4.22.2",
+     "pg": "^8.13.0",
++    "pg-copy-streams": "^7.0.0",
+     "react": "^18.3.1",
+     "react-dom": "^18.3.1"
+   },
++  "engines": {
++    "node": ">=24"
++  },
+   "devDependencies": {
+     "@vitejs/plugin-react": "^4.3.4",
+     "concurrently": "^10.0.0",
+diff --git a/src/zava-designer-agent-ui-demo/public/sample-product.svg b/src/zava-designer-agent-ui-demo/public/sample-product.svg
+new file mode 100644
+index 0000000..f494bb7
+--- /dev/null
++++ b/src/zava-designer-agent-ui-demo/public/sample-product.svg
+@@ -0,0 +1,6 @@
++<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
++  <rect width="400" height="300" fill="#eee9df"/>
++  <rect x="95" y="75" width="210" height="120" rx="15" fill="#b89a76"/>
++  <path d="M110 195v45M290 195v45" stroke="#5c4937" stroke-width="14"/>
++  <text x="200" y="275" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#5c4937">Fictional workshop catalog</text>
++</svg>
+diff --git a/src/zava-designer-agent-ui-demo/server.mjs b/src/zava-designer-agent-ui-demo/server.mjs
+new file mode 100644
+index 0000000..a31662a
+--- /dev/null
++++ b/src/zava-designer-agent-ui-demo/server.mjs
+@@ -0,0 +1,76 @@
++import 'dotenv/config';
++import express from 'express';
++import pg from 'pg';
++import { readFileSync } from 'node:fs';
++import { dirname, resolve } from 'node:path';
++import { fileURLToPath } from 'node:url';
++import { InputError, runAgent, validateBrief } from './agent.mjs';
++
++const directory = dirname(fileURLToPath(import.meta.url));
++
++export function createApp(pool) {
++  const app = express();
++  app.disable('x-powered-by');
++  app.use(express.json({ limit: '16kb' }));
++  app.get('/api/health', async (_req, res, next) => {
++    try {
++      const { rows } = await pool.query(`
++        SELECT current_database() AS database, count(*) AS products,
++          count(*) FILTER (WHERE embedding IS NOT NULL AND vector_dims(embedding) = 1536) AS embedded,
++          to_regnamespace('workshop_style') IS NOT NULL AS graph_ready
++        FROM workshop.products
++      `);
++      const ready = Number(rows[0].products) === 18 && Number(rows[0].embedded) === 18 && rows[0].graph_ready;
++      res.status(ready ? 200 : 503).json({ status: ready ? 'ok' : 'incomplete', db: true, ...rows[0] });
++    } catch (error) {
++      next(error);
++    }
++  });
++  app.post('/api/design-room', async (req, res, next) => {
++    let client;
++    try {
++      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
++        throw new InputError('A JSON room brief is required.');
++      }
++      const brief = validateBrief(req.body);
++      client = await pool.connect();
++      await client.query('SET search_path = ag_catalog, public');
++      res.json(await runAgent(client, brief));
++    } catch (error) {
++      next(error);
++    } finally {
++      client?.release();
++    }
++  });
++  app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown API route.' }));
++  app.use(express.static(resolve(directory, 'dist')));
++  app.get('*', (_req, res) => res.sendFile(resolve(directory, 'dist/index.html')));
++  app.use((error, _req, res, _next) => {
++    console.error('Zava workshop request failed:', error);
++    const badRequest = error instanceof InputError || error.status === 400;
++    res.status(badRequest ? 400 : 500).json({
++      error: badRequest ? error.message : 'Database or AI request failed. Inspect server logs and workshop setup.',
++    });
++  });
++  return app;
++}
++
++if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
++  for (const name of ['PGHOST', 'PGDATABASE', 'PGUSER', 'PGPASSWORD']) {
++    if (!process.env[name]) throw new Error(`Missing required setting ${name}.`);
++  }
++  const pool = new pg.Pool({
++    host: process.env.PGHOST, database: process.env.PGDATABASE,
++    user: process.env.PGUSER, password: process.env.PGPASSWORD,
++    port: Number(process.env.PGPORT || 5432), max: 4, connectionTimeoutMillis: 15000,
++    ssl: {
++      rejectUnauthorized: true,
++      ca: readFileSync(process.env.PGSSLROOTCERT || resolve(directory, 'certs/roots.pem'), 'utf8'),
++    },
++  });
++  const port = Number(process.env.PORT || 3001);
++  const server = createApp(pool).listen(port, '0.0.0.0', () => {
++    console.log(`Zava workshop listening on port ${port}; text-only design brief, live HorizonDB queries.`);
++  });
++  process.on('SIGTERM', () => server.close(() => pool.end()));
++}
+diff --git a/src/zava-designer-agent-ui-demo/src/App.jsx b/src/zava-designer-agent-ui-demo/src/App.jsx
+index 8fbb42b..783d0dd 100644
+--- a/src/zava-designer-agent-ui-demo/src/App.jsx
++++ b/src/zava-designer-agent-ui-demo/src/App.jsx
+@@ -1,33 +1,21 @@
+-import { useState, useCallback, useRef } from 'react';
++import { useState, useCallback } from 'react';
+ import AgentTrace from './components/AgentTrace';
+ import DesignDrawer from './components/DesignDrawer';
+ import QueryTrace from './components/QueryTrace';
+ import RoomView from './components/RoomView';
+ import SuggestionsPanel from './components/SuggestionsPanel';
+-import {
+-  suggestedProducts as mockProducts,
+-  defaultDesignBrief,
+-} from './data/mockData';
++import { defaultDesignBrief } from './data/mockData';
+ 
+ export default function App() {
+   /* ── Design brief state ── */
+   const [theme, setTheme] = useState(defaultDesignBrief.theme);
+   const [budget, setBudget] = useState(defaultDesignBrief.budget);
+-  const [roomImageUrl, setRoomImageUrl] = useState('');
+-  const [selectedBrands, setSelectedBrands] = useState(
+-    defaultDesignBrief.selectedBrands,
+-  );
+   const [priorities, setPriorities] = useState(defaultDesignBrief.priorities);
+-  const [mustHitBudget, setMustHitBudget] = useState(
+-    defaultDesignBrief.mustHitBudget,
+-  );
+ 
+   /* ── Product & trace state ── */
+-  const [products, setProducts] = useState(mockProducts);
++  const [products, setProducts] = useState([]);
+   const [agentTraceData, setAgentTraceData] = useState(null);
+-  const [selectedIds, setSelectedIds] = useState(
+-    new Set(mockProducts.map((p) => p.id)),
+-  );
++  const [selectedIds, setSelectedIds] = useState(new Set());
+   const [isDesigned, setIsDesigned] = useState(false);
+   const [isDesigning, setIsDesigning] = useState(false);
+   const [designStep, setDesignStep] = useState(0);
+@@ -37,26 +25,12 @@ export default function App() {
+   const [showAgentTrace, setShowAgentTrace] = useState(false);
+   const [cartAdded, setCartAdded] = useState(false);
+   const [highlightedProductId, setHighlightedProductId] = useState(null);
+-  const [demoMode, setDemoMode] = useState(() => {
+-    try {
+-      const v = localStorage.getItem('zava-demo-mode');
+-      return v === null ? true : v === '1';
+-    } catch { return true; }
+-  });
+-  const stepTimerRef = useRef(null);
+ 
+   const handleProductDotClick = useCallback((productId) => {
+     setShowSuggestions(true);
+     setHighlightedProductId(productId);
+   }, []);
+ 
+-  const toggleDemoMode = useCallback(() => {
+-    setDemoMode((prev) => {
+-      const next = !prev;
+-      try { localStorage.setItem('zava-demo-mode', next ? '1' : '0'); } catch {}
+-      return next;
+-    });
+-  }, []);
+ 
+   const handleAddToCart = useCallback(() => {
+     setCartAdded(true);
+@@ -79,15 +53,6 @@ export default function App() {
+     setIsDesigning(true);
+     setDesignStep(0);
+ 
+-    // Start step animation while API call runs
+-    let step = 0;
+-    stepTimerRef.current = setInterval(() => {
+-      step += 1;
+-      if (step < TOTAL_STEPS) {
+-        setDesignStep(step);
+-      }
+-    }, 800);
+-
+     try {
+       const res = await fetch('/api/design-room', {
+         method: 'POST',
+@@ -96,26 +61,20 @@ export default function App() {
+           theme,
+           budget,
+           priorities,
+-          brands: selectedBrands,
+-          demoMode,
+-          ...(roomImageUrl && { roomImageUrl }),
+         }),
+       });
+ 
+-      if (!res.ok) throw new Error(`API error: ${res.status}`);
+       const data = await res.json();
++      if (!res.ok) throw new Error(data.error || `API error: ${res.status}`);
+ 
+       // Stop step animation and jump to done
+-      clearInterval(stepTimerRef.current);
+       setDesignStep(TOTAL_STEPS);
+ 
+       if (data.products && data.products.length > 0) {
+         setProducts(data.products);
+         setSelectedIds(new Set(data.products.map((p) => p.id)));
+       } else {
+-        // Fallback to mock data
+-        setProducts(mockProducts);
+-        setSelectedIds(new Set(mockProducts.map((p) => p.id)));
++        throw new Error('The database returned no products. Check the budget and catalog setup.');
+       }
+ 
+       if (data.trace) {
+@@ -127,18 +86,16 @@ export default function App() {
+         setIsDesigned(true);
+       }, 400);
+     } catch (err) {
+-      console.error('Design API failed, using mock data:', err);
+-      clearInterval(stepTimerRef.current);
+-      setDesignStep(TOTAL_STEPS);
+-      setProducts(mockProducts);
+-      setSelectedIds(new Set(mockProducts.map((p) => p.id)));
++      console.error('Design API failed:', err);
++      setDesignStep(0);
++      setProducts([]);
++      setSelectedIds(new Set());
+       setAgentTraceData(null);
+-      setTimeout(() => {
+-        setIsDesigning(false);
+-        setIsDesigned(true);
+-      }, 400);
++      setIsDesigning(false);
++      setIsDesigned(false);
++      window.alert(err.message);
+     }
+-  }, [isDesigning, isDesigned, theme, budget, priorities, selectedBrands, demoMode]);
++  }, [isDesigning, isDesigned, theme, budget, priorities]);
+ 
+   const handleRedesign = useCallback(() => {
+     setIsDesigned(false);
+@@ -149,17 +106,8 @@ export default function App() {
+     setShowAgentTrace(false);
+     setCartAdded(false);
+     setAgentTraceData(null);
+-    if (stepTimerRef.current) clearInterval(stepTimerRef.current);
+   }, []);
+ 
+-  const toggleBrand = (brand) => {
+-    setSelectedBrands((prev) =>
+-      prev.includes(brand)
+-        ? prev.filter((b) => b !== brand)
+-        : [...prev, brand],
+-    );
+-  };
+-
+   const togglePriority = (catId) => {
+     setPriorities((prev) => {
+       if (prev.includes(catId)) return prev.filter((c) => c !== catId);
+@@ -209,7 +157,7 @@ export default function App() {
+           )}
+           <div className="active-users">
+             <span className="pulse" />
+-            <span>2,847 designing now</span>
++            <span>Live HorizonDB workshop</span>
+           </div>
+           <div className="avatar">A</div>
+         </div>
+@@ -251,16 +199,8 @@ export default function App() {
+             setTheme={setTheme}
+             budget={budget}
+             setBudget={setBudget}
+-            roomImageUrl={roomImageUrl}
+-            setRoomImageUrl={setRoomImageUrl}
+-            selectedBrands={selectedBrands}
+-            toggleBrand={toggleBrand}
+             priorities={priorities}
+             togglePriority={togglePriority}
+-            mustHitBudget={mustHitBudget}
+-            setMustHitBudget={setMustHitBudget}
+-            demoMode={demoMode}
+-            toggleDemoMode={toggleDemoMode}
+             onClose={() => setShowDrawer(false)}
+           />
+         )}
+diff --git a/src/zava-designer-agent-ui-demo/src/components/AgentTrace.jsx b/src/zava-designer-agent-ui-demo/src/components/AgentTrace.jsx
+index 4f697c5..5757237 100644
+--- a/src/zava-designer-agent-ui-demo/src/components/AgentTrace.jsx
++++ b/src/zava-designer-agent-ui-demo/src/components/AgentTrace.jsx
+@@ -1,70 +1,10 @@
+ import { useState, useEffect } from 'react';
+ 
+-const FAKE_TOOL_CALLS = [
+-  {
+-    tool: 'analyze_room_photo',
+-    status: 'success',
+-    duration: 1200,
+-    sql: `SELECT azure_ai.generate(\n  'Analyze this living room photo...'\n) AS result;`,
+-    input: { image: 'room.jpg', detect: ['furniture', 'style', 'colors'] },
+-    output: {
+-      style: 'mid-century modern',
+-      colors: ['warm brown', 'cream', 'brick red'],
+-      existing: ['chevron sofa', 'brick wall', 'hardwood floor'],
+-      gaps: ['coffee table', 'accent chair', 'lighting', 'rug', 'shelving'],
+-    },
+-  },
+-  {
+-    tool: 'get_semantic_context',
+-    status: 'success',
+-    duration: 80,
+-    sql: `SELECT a.attname, col_description(a.attrelid, a.attnum)\nFROM pg_attribute a\nJOIN pg_class c ON a.attrelid = c.oid\nWHERE c.relname = 'product_sample';`,
+-    input: { term: 'mid-century modern living room' },
+-    output: {
+-      expanded_terms: ['danish modern', 'retro furniture', 'tapered legs'],
+-      filter_hint: 'average_rating >= 4.0',
+-    },
+-  },
+-  {
+-    tool: 'hybrid_search_products',
+-    status: 'success',
+-    duration: 1000,
+-    sql: `SELECT p.title, p.price, s.score\nFROM ai.search(\n  'mid-century modern furniture for Brooklyn loft',\n  source_table => 'product_sample',\n  filter => 'categories @> ''["Chairs"]'''\n) s\nJOIN product_sample p ON p.id = s.id;`,
+-    input: { query: 'mid-century coffee table accent chair warm lighting bohemian rug', top_k: 20, rerank: true },
+-    output: { results: 20, method: 'ai.search() — pg_fts BM25 + pgvector DiskANN + RRF' },
+-  },
+-  {
+-    tool: 'find_related_products',
+-    status: 'success',
+-    duration: 400,
+-    sql: `SELECT * FROM cypher('style_graph', $$\n  MATCH (seed:Product {id: 10414})-[:HAS_STYLE]->(s:Style)\n        -[:SIMILAR_TO]->(related:Style)<-[:HAS_STYLE]-(rec:Product)\n  RETURN rec.id, rec.title, related.name\n  LIMIT 5\n$$) AS (id agtype, title agtype, style agtype);`,
+-    input: { product_id: 10414, relationship: 'style_graph traversal' },
+-    output: { related: ['art-leon-chair', 'hugoai-lamp', 'safavieh-rug'] },
+-  },
+-  {
+-    tool: 'filter_products',
+-    status: 'success',
+-    duration: 45,
+-    sql: `SELECT id, title, price, average_rating\nFROM product_sample\nWHERE id = ANY($1)\n  AND price_num <= $2\n  AND average_rating >= 4.0\nORDER BY average_rating DESC;`,
+-    input: { max_price: 300, min_rating: 4.0, candidates: 20 },
+-    output: { matched: 14, filtered_out: 6 },
+-  },
+-  {
+-    tool: 'curate_room_picks',
+-    status: 'success',
+-    duration: 1500,
+-    sql: `SELECT id, rank, score\nFROM azure_ai.rank(\n  'mid-century modern furniture for Brooklyn loft',\n  $1::text[],  -- product titles\n  $2::int[]    -- product ids\n)\nORDER BY rank;`,
+-    input: { candidates: 14, room_style: 'mid-century modern', budget: 2000 },
+-    output: { final_picks: 7, total_cost: 624.37, budget_utilization: '31%' },
+-  },
+-];
+-
+ export default function AgentTrace({ isVisible, onClose, traceData }) {
+   const [revealedCount, setRevealedCount] = useState(0);
+   const [expandedIdx, setExpandedIdx] = useState(null);
+ 
+-  // Use real trace data if available, otherwise fall back to fake
+-  const toolCalls = traceData || FAKE_TOOL_CALLS;
++  const toolCalls = traceData || [];
+ 
+   useEffect(() => {
+     if (!isVisible) {
+@@ -165,7 +105,7 @@ export default function AgentTrace({ isVisible, onClose, traceData }) {
+           <div className="at-footer-divider" />
+           <div className="at-footer-stat">
+             <span className="at-footer-number">0</span>
+-            <span className="at-footer-label">external APIs</span>
++            <span className="at-footer-label">direct model SDKs</span>
+           </div>
+         </div>
+       </div>
+diff --git a/src/zava-designer-agent-ui-demo/src/components/DesignDrawer.jsx b/src/zava-designer-agent-ui-demo/src/components/DesignDrawer.jsx
+index 66f35ac..4ed2150 100644
+--- a/src/zava-designer-agent-ui-demo/src/components/DesignDrawer.jsx
++++ b/src/zava-designer-agent-ui-demo/src/components/DesignDrawer.jsx
+@@ -1,20 +1,12 @@
+-import { themes, brands, categories, categoryIcons } from '../data/mockData';
++import { themes, categories, categoryIcons } from '../data/mockData';
+ 
+ export default function DesignDrawer({
+   theme,
+   setTheme,
+   budget,
+   setBudget,
+-  roomImageUrl,
+-  setRoomImageUrl,
+-  selectedBrands,
+-  toggleBrand,
+   priorities,
+   togglePriority,
+-  mustHitBudget,
+-  setMustHitBudget,
+-  demoMode,
+-  toggleDemoMode,
+   onClose,
+ }) {
+   return (
+@@ -57,7 +49,7 @@ export default function DesignDrawer({
+                 value={budget}
+                 onChange={(e) => setBudget(Number(e.target.value) || 0)}
+                 min={500}
+-                max={50000}
++                max={10000}
+                 step={100}
+               />
+             </div>
+@@ -76,83 +68,13 @@ export default function DesignDrawer({
+             </div>
+           </section>
+ 
+-          {/* ── Room Photo URL ── */}
+           <section className="dp-section">
+-            <label className="dp-label">Room Photo URL</label>
+-            <input
+-              type="url"
+-              className="dp-budget-input"
+-              style={{ width: '100%', fontSize: '0.8rem' }}
+-              value={roomImageUrl}
+-              onChange={(e) => setRoomImageUrl(e.target.value)}
+-              placeholder="https://..."
+-            />
+-            <p className="dp-hint">
+-              Paste an image URL of your room for AI analysis.
+-            </p>
+-          </section>
+-
+-          {/* ── Price Preference ── */}
+-          <section className="dp-section">
+-            <label className="dp-label">Pricing Preference</label>
+-            <div className="dp-toggle-row">
+-              <label className="dp-toggle">
+-                <input
+-                  type="checkbox"
+-                  checked={mustHitBudget}
+-                  onChange={(e) => setMustHitBudget(e.target.checked)}
+-                />
+-                <span className="dp-toggle-track">
+-                  <span className="dp-toggle-thumb" />
+-                </span>
+-                <span className="dp-toggle-text">Hit my budget</span>
+-              </label>
+-            </div>
+-            <p className="dp-hint">
+-              When enabled, we'll fill your room as close to $
+-              {budget.toLocaleString()} as possible with the best picks.
+-            </p>
+-          </section>
+-
+-          {/* ── Demo Mode ── */}
+-          <section className="dp-section">
+-            <label className="dp-label">Demo Mode</label>
+-            <div className="dp-toggle-row">
+-              <label className="dp-toggle">
+-                <input
+-                  type="checkbox"
+-                  checked={!!demoMode}
+-                  onChange={() => toggleDemoMode && toggleDemoMode()}
+-                />
+-                <span className="dp-toggle-track">
+-                  <span className="dp-toggle-thumb" />
+-                </span>
+-                <span className="dp-toggle-text">Use fixed demo query</span>
+-              </label>
+-            </div>
+             <p className="dp-hint">
+-              When enabled, the search always uses:
+-              <br />
+-              <code>mid-century modern furniture for Brooklyn loft living room with wood tones</code>
++              Text-only workshop using 18 fictional products. The total stays within your budget.
++              Photo analysis, brand filters and fixed mock results are not enabled.
+             </p>
+           </section>
+ 
+-          {/* ── Brand Filter ── */}
+-          <section className="dp-section">
+-            <label className="dp-label">Preferred Brands</label>
+-            <div className="dp-chips">
+-              {brands.map((b) => (
+-                <button
+-                  key={b}
+-                  className={`dp-chip ${selectedBrands.includes(b) ? 'active' : ''}`}
+-                  onClick={() => toggleBrand(b)}
+-                >
+-                  {b}
+-                </button>
+-              ))}
+-            </div>
+-          </section>
+-
+           {/* ── Priority Focus ── */}
+           <section className="dp-section">
+             <label className="dp-label">
+diff --git a/src/zava-designer-agent-ui-demo/src/components/QueryTrace.jsx b/src/zava-designer-agent-ui-demo/src/components/QueryTrace.jsx
+index d5b6a03..e4dbcc2 100644
+--- a/src/zava-designer-agent-ui-demo/src/components/QueryTrace.jsx
++++ b/src/zava-designer-agent-ui-demo/src/components/QueryTrace.jsx
+@@ -3,45 +3,39 @@ import { useState, useEffect } from 'react';
+ const PIPELINE_STEPS = [
+   {
+     icon: '📦',
+-    label: 'Data Ingestion → AI Pipelines',
+-    detail: '100K products ingested, embedded, and indexed automatically — durable, resumable, incremental',
+-    engine: 'Durable AI Pipelines — in HorizonDB',
+-    latency: 'pre-built',
++    label: 'Text Brief → Structured Room Description',
++    detail: 'A managed chat model generates a JSON room brief from the selected theme. No photo inference.',
++    engine: 'ai.generate()',
+   },
+   {
+     icon: '🧬',
+-    label: 'Room Photo → Description → Embedding',
+-    detail: 'Your room photo converted into a description and then embedded into a 1536-dim vector',
+-    engine: 'azure_openai.create_embeddings() — in HorizonDB',
+-    latency: '80ms',
++    label: 'Schema Introspection',
++    detail: 'Inspect the actual catalog columns, types and comments.',
++    engine: 'pg_catalog',
+   },
+   {
+     icon: '🔍',
+     label: 'Hybrid Search (Vector + Full-Text + Advanced Filtering)',
+-    detail: 'Filtered vector search with DiskANN + pg_fts BM25 ranking — price, category, and rating filters pushed into the index scan. Advanced filtering means fewer candidates, faster results.',
+-    engine: 'pgvector + DiskANN + pg_fts — in HorizonDB',
+-    latency: '45ms',
++    detail: 'Search 18 real workshop rows with 1536-dimensional embeddings and combine vector and keyword scores.',
++    engine: 'ai.search() + DiskANN + pg_textsearch BM25 + RRF',
+   },
+   {
+     icon: '🕸️',
+     label: 'Graph Traversal',
+     detail: 'Style graph traverses Product → Style → SIMILAR_TO → Style to discover cross-category matches you\'d never find with a filter',
+     engine: 'Apache AGE (Cypher) — in HorizonDB',
+-    latency: '12ms',
+   },
+   {
+     icon: '🎯',
+-    label: 'AI Reranking',
+-    detail: 'Cohere reranks candidates for aesthetic match to your room',
+-    engine: 'azure_ai.rerank() — in HorizonDB',
+-    latency: '350ms',
++    label: 'Budget, Category and Rating Filters',
++    detail: 'Filter the retrieved and graph-expanded product IDs with ordinary SQL.',
++    engine: 'SELECT ... WHERE',
+   },
+   {
+     icon: '✅',
+-    label: '7 Products Returned',
+-    detail: 'Ranked, priced, with images — ready for your room',
+-    engine: 'One SQL query. One database.',
+-    latency: '',
++    label: 'Managed Reranking → Final Picks',
++    detail: 'Rerank eligible candidates in SQL; Node.js selects at most one per category within the total budget.',
++    engine: 'ai.rank() + a small application selection step',
+   },
+ ];
+ 
+@@ -70,10 +64,10 @@ export default function QueryTrace({ isVisible, onClose }) {
+           <button className="qt-close" onClick={onClose} title="Close">✕</button>
+           <div className="qt-header-left">
+             <span className="qt-db-badge">🐘 HorizonDB</span>
+-            <h3 className="qt-title">What just happened — under the hood</h3>
++            <h3 className="qt-title">Architecture overview</h3>
+           </div>
+           <span className="qt-subtitle">
+-            Every step ran inside one PostgreSQL database
++            See Agent Details for actual SQL, results and timings.
+           </span>
+         </div>
+ 
+@@ -103,7 +97,7 @@ export default function QueryTrace({ isVisible, onClose }) {
+         <div className={`qt-footer ${revealedCount >= PIPELINE_STEPS.length ? 'revealed' : ''}`}>
+           <div className="qt-footer-stat">
+             <span className="qt-footer-number">6</span>
+-            <span className="qt-footer-label">AI operations</span>
++            <span className="qt-footer-label">SQL stages</span>
+           </div>
+           <div className="qt-footer-divider" />
+           <div className="qt-footer-stat">
+@@ -112,13 +106,13 @@ export default function QueryTrace({ isVisible, onClose }) {
+           </div>
+           <div className="qt-footer-divider" />
+           <div className="qt-footer-stat">
+-            <span className="qt-footer-number">1</span>
+-            <span className="qt-footer-label">SQL query</span>
++            <span className="qt-footer-number">3</span>
++            <span className="qt-footer-label">managed models</span>
+           </div>
+           <div className="qt-footer-divider" />
+           <div className="qt-footer-stat">
+             <span className="qt-footer-number">0</span>
+-            <span className="qt-footer-label">external services</span>
++            <span className="qt-footer-label">direct model SDKs</span>
+           </div>
+         </div>
+       </div>
+diff --git a/src/zava-designer-agent-ui-demo/src/components/RoomView.jsx b/src/zava-designer-agent-ui-demo/src/components/RoomView.jsx
+index 0bba713..5f0e309 100644
+--- a/src/zava-designer-agent-ui-demo/src/components/RoomView.jsx
++++ b/src/zava-designer-agent-ui-demo/src/components/RoomView.jsx
+@@ -5,11 +5,11 @@ const ROOM_PHOTO = '/room-empty.png';
+ const ROOM_FURNISHED_PHOTO = '/room-furnished.png';
+ 
+ const LOADING_STEPS = [
+-  { icon: '📷', label: 'Analyzing room photo…', tool: 'analyze_room_photo' },
++  { icon: '📷', label: 'Generating a text-only room brief…', tool: 'analyze_room_brief' },
+   { icon: '🧠', label: 'Understanding your style…', tool: 'get_semantic_context' },
+-  { icon: '🔍', label: 'Searching 100K products…', tool: 'hybrid_search_products' },
++  { icon: '🔍', label: 'Searching 18 workshop products…', tool: 'hybrid_search_products' },
++  { icon: '🕸️', label: 'Traversing the style graph…', tool: 'find_related_products_graph' },
+   { icon: '💰', label: 'Applying budget filters…', tool: 'filter_products' },
+-  { icon: '🕸️', label: 'Finding pieces that pair well…', tool: 'find_related_products' },
+   { icon: '🎯', label: 'Curating room picks…', tool: 'curate_room_picks' },
+ ];
+ 
+@@ -107,7 +107,7 @@ export default function RoomView({ selectedProducts, isDesigned, isDesigning, on
+               <span className="room-label-icon">✨</span>
+               <span className="room-label-text">Your Brooklyn Living Room</span>
+               <span className="room-label-sub">
+-                {selectedProducts.length} items placed · Mid-Century Modern
++                {selectedProducts.length} live catalog picks · Static demo photo
+               </span>
+               <button className="redesign-btn" onClick={onRedesign}>
+                 🔄 Redesign
+@@ -115,11 +115,11 @@ export default function RoomView({ selectedProducts, isDesigned, isDesigning, on
+             </>
+           ) : isDesigning ? (
+             <div className="design-loading">
+-              <span className="design-loading-title">✨ Designing your room</span>
++              <span className="design-loading-title">✨ Waiting for the live database pipeline</span>
+               <div className="design-loading-steps">
+                 {LOADING_STEPS.map((step, i) => {
+-                  const isDone = i < designStep;
+-                  const isActive = i === designStep;
++                  const isDone = false;
++                  const isActive = true;
+                   return (
+                     <div
+                       key={i}
+@@ -138,7 +138,7 @@ export default function RoomView({ selectedProducts, isDesigned, isDesigning, on
+               <span className="room-label-icon">📐</span>
+               <span className="room-label-text">Your empty Brooklyn loft</span>
+               <span className="room-label-sub">
+-                Upload a photo, then let Zava Designer Agent find the perfect pieces
++                Choose a theme and budget. Photos are static; recommendations use live HorizonDB queries.
+               </span>
+               <button className="design-my-room-btn" onClick={onDesignMyRoom}>
+                 <span className="design-btn-sparkle">✨</span>
+diff --git a/tests/deployment.test.mjs b/tests/deployment.test.mjs
+new file mode 100644
+index 0000000..a286304
+--- /dev/null
++++ b/tests/deployment.test.mjs
+@@ -0,0 +1,94 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import {
++  containerDatabaseHost, firewallIps, hostingTarget, needsRestart, readWriteHostname, waitForOperation,
++} from '../scripts/azure.mjs';
++
++test('use the service-generated cluster writer instead of a pool reader', () => {
++  const endpoints = { value: [
++    { properties: { scope: 'Pool', role: 'ReadOnly', fullyQualifiedDomainName: 'reader.example.net' } },
++    { properties: { scope: 'Cluster', role: 'ReadWrite', fullyQualifiedDomainName: 'writer.example.net' } },
++  ] };
++  assert.equal(readWriteHostname(endpoints), 'writer.example.net');
++  assert.throws(() => readWriteHostname({ value: [endpoints.value[0]] }), /ReadWrite endpoint/);
++  assert.throws(() => readWriteHostname({ value: [endpoints.value[1], endpoints.value[1]] }), /ReadWrite endpoint/);
++});
++
++test('restart pending static changes, preserve synchronized pools and surface failed application', () => {
++  const pool = syncStatus => ({ properties: { parameterGroup: { syncStatus } } });
++  assert.equal(needsRestart(pool('PendingReboot')), true);
++  assert.equal(needsRestart(pool('InSync')), false);
++  assert.throws(() => needsRestart(pool('FailedToApply')), /failed to apply/);
++});
++
++test('deduplicate real outbound addresses and reject missing or invalid firewall data', () => {
++  assert.deepEqual(firewallIps('20.1.2.3, 20.1.2.3,20.4.5.6'), ['20.1.2.3', '20.4.5.6']);
++  assert.throws(() => firewallIps(''), /IPv4/);
++  assert.throws(() => firewallIps('20.1.2.3,0.0.0.0/0'), /IPv4/);
++  assert.throws(() => firewallIps('0.0.0.0'), /IPv4/);
++  assert.throws(() => firewallIps(undefined), /IPv4/);
++});
++
++test('default to Container Apps and reject unknown or mismatched hosting targets', () => {
++  assert.equal(hostingTarget({}), 'containerapp');
++  assert.equal(hostingTarget({
++    AZURE_HOSTING_TARGET: 'appservice', AZURE_DEPLOYED_HOSTING_TARGET: 'appservice',
++  }, true), 'appservice');
++  assert.throws(() => hostingTarget({ AZURE_HOSTING_TARGET: 'aks' }), /must be/);
++  assert.throws(() => hostingTarget({
++    AZURE_HOSTING_TARGET: 'appservice', AZURE_DEPLOYED_HOSTING_TARGET: 'containerapp',
++  }), /fresh azd environment/);
++  assert.throws(() => hostingTarget({}, true), /azd provision/);
++});
++
++test('configure the container database host without losing secret references or revision settings', () => {
++  const resource = { properties: { template: {
++    scale: { minReplicas: 0, maxReplicas: 1 },
++    containers: [{ name: 'web', image: 'registry.example/web:1', env: [
++      { name: 'PGHOST', value: '' }, { name: 'PGPASSWORD', secretRef: 'db-app-password' },
++    ] }],
++  } } };
++  const patch = containerDatabaseHost(resource, 'writer.example.net');
++  assert.deepEqual(patch.properties.template.scale, resource.properties.template.scale);
++  assert.deepEqual(patch.properties.template.containers[0].env, [
++    { name: 'PGPASSWORD', secretRef: 'db-app-password' },
++    { name: 'PGHOST', value: 'writer.example.net' },
++  ]);
++  assert.equal(resource.properties.template.containers[0].env[0].value, '');
++  assert.throws(() => containerDatabaseHost({ properties: { template: { containers: [] } } }, 'writer'),
++    /exactly one/);
++});
++
++test('wait for ARM asynchronous completion instead of treating acceptance as success', async () => {
++  const initial = new Response(null, { status: 202, headers: {
++    'azure-asyncoperation': 'https://management.azure.com/operations/test?api-version=1',
++    'retry-after': '0',
++  } });
++  const statuses = ['InProgress', 'Succeeded'];
++  let calls = 0;
++  await waitForOperation(async (method, url) => {
++    assert.equal(method, 'GET');
++    assert.equal(url, 'https://management.azure.com/operations/test?api-version=1');
++    return Response.json({ status: statuses[calls++] }, { headers: { 'retry-after': '0' } });
++  }, initial);
++  assert.equal(calls, 2);
++});
++
++test('surface the provider error when an accepted ARM operation fails', async () => {
++  const initial = new Response(null, { status: 202, headers: {
++    'azure-asyncoperation': '/operations/test', 'retry-after': '0',
++  } });
++  await assert.rejects(waitForOperation(async () => Response.json({
++    status: 'Failed', error: { code: 'ModelUnavailable', message: 'Managed model provisioning failed.' },
++  }), initial), /ModelUnavailable.*Managed model provisioning failed/);
++});
++
++test('support Location completion and reject missing or untrusted polling URLs', async () => {
++  await waitForOperation(async () => new Response(null, { status: 204 }),
++    new Response(null, { status: 202, headers: { location: '/operations/test', 'retry-after': '0' } }));
++  const unexpected = () => { throw new Error('The request must not be sent.'); };
++  await assert.rejects(waitForOperation(unexpected, new Response(null, { status: 202 })), /polling URL/);
++  await assert.rejects(waitForOperation(unexpected, new Response(null, {
++    status: 202, headers: { 'azure-asyncoperation': 'https://untrusted.example/operation' },
++  })), /unexpected operation polling origin/);
++});
