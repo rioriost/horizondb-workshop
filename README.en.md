@@ -19,7 +19,7 @@ Times are a guide. Resource creation, deletion and managed-model preparation can
 
 ## Prerequisites
 
-You need an Azure subscription with resource-creation and RBAC-assignment permissions, `psql` 17+, Azure CLI (`az`), Azure Developer CLI (`azd`) 1.39.1+, Node.js 24+, npm and Git. See [prerequisites](docs/en/prerequisites.md) for installation, authentication and workshop setup.
+You need an Azure subscription with resource-creation and RBAC-assignment permissions, `psql` 16.15+, Azure CLI (`az`), Azure Developer CLI (`azd`) 1.37.1+, Node.js 24+, npm and Git. See [prerequisites](docs/en/prerequisites.md) for installation, authentication and workshop setup.
 
 Start with `azd provision` to create the database and application infrastructure, then run `azd deploy` after the SQL exercises. For a standalone demo, run `azd up` in the prepared local `zava/` fork.
 

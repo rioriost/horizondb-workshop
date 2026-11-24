@@ -16,9 +16,9 @@ HorizonDB、モデル推論、Container Apps、ACR、Log Analytics、およびNA
 
 | ツール | 用途・導入 |
 | --- | --- |
-| `psql` 17以降 | PostgreSQLクライアント。[ダウンロード](https://www.postgresql.org/download/) |
+| `psql` 16.15以降 | PostgreSQLクライアント。[ダウンロード](https://www.postgresql.org/download/) |
 | Azure CLI (`az`) | 認証・ARM操作。[導入](https://learn.microsoft.com/cli/azure/install-azure-cli) |
-| Azure Developer CLI (`azd`) 1.39.1以降 | Bicepによる作成・アプリ配信・削除。[導入](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) |
+| Azure Developer CLI (`azd`) 1.37.1以降 | Bicepによる作成・アプリ配信・削除。[導入](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) |
 | Node.js 24以降 / npm | Zavaと初期化フック。[導入](https://nodejs.org/en/download) |
 | Git | 教材と編集可能なローカルforkを準備 |
 | Webブラウザー | アプリを操作 |
@@ -34,7 +34,7 @@ export PATH="$(brew --prefix libpq)/bin:$(brew --prefix node@24)/bin:$PATH"
 
 `npm`はNode.jsに同梱されています。`libpq`と`node@24`はPATHの追加が必要です。新しいターミナルでも使えるようにする場合は、同じ`export`行をシェルの設定ファイル（zshなら`~/.zshrc`）に追加してください。
 
-WSL2 / Ubuntuでは`sudo apt-get install postgresql-client git`を使い、17未満なら公式手順で対応クライアントを導入します。ローカルのPostgreSQLサーバーやDockerは不要です。コンテナーのビルドにはAzure上のACRを使います。
+WSL2 / Ubuntuでは`sudo apt-get install postgresql-client git`を使い、16.15未満なら公式手順で対応クライアントを導入します。ローカルのPostgreSQLサーバーやDockerは不要です。コンテナーのビルドにはAzure上のACRを使います。
 
 ```bash
 psql --version

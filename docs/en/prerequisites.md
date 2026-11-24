@@ -16,9 +16,9 @@ HorizonDB, inference, Container Apps, ACR, Log Analytics, NAT Gateway, static IP
 
 | Tool | Purpose / installation |
 | --- | --- |
-| `psql` 17+ | PostgreSQL client; [download](https://www.postgresql.org/download/) |
+| `psql` 16.15+ | PostgreSQL client; [download](https://www.postgresql.org/download/) |
 | Azure CLI (`az`) | Authentication/ARM operations; [install](https://learn.microsoft.com/cli/azure/install-azure-cli) |
-| Azure Developer CLI (`azd`) 1.39.1+ | Bicep provisioning, deployment and deletion; [install](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) |
+| Azure Developer CLI (`azd`) 1.37.1+ | Bicep provisioning, deployment and deletion; [install](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) |
 | Node.js 24+ / npm | Application and initialization hooks; [install](https://nodejs.org/en/download) |
 | Git | Workshop and editable local fork |
 | Browser | Use the application |
@@ -34,7 +34,7 @@ export PATH="$(brew --prefix libpq)/bin:$(brew --prefix node@24)/bin:$PATH"
 
 Node.js includes npm. Both `libpq` and `node@24` need PATH entries. To keep them available in new terminal sessions, add the same `export` line to your shell configuration file (`~/.zshrc` for zsh).
 
-On WSL2/Ubuntu, install `postgresql-client git`; use the official instructions if the distribution client is older than 17. No local PostgreSQL server or Docker is required; ACR builds containers in Azure.
+On WSL2/Ubuntu, install `postgresql-client git`; use the official instructions if the distribution client is older than 16.15. No local PostgreSQL server or Docker is required; ACR builds containers in Azure.
 
 ```bash
 psql --version

@@ -16,7 +16,7 @@ index b1d1133..2d7d49b 100644
  node_modules/
 diff --git a/README.en.md b/README.en.md
 new file mode 100644
-index 0000000..bde9d00
+index 0000000..0289f66
 --- /dev/null
 +++ b/README.en.md
 @@ -0,0 +1,84 @@
@@ -28,7 +28,7 @@ index 0000000..bde9d00
 +
 +## Prerequisites
 +
-+Install Azure CLI, Azure Developer CLI 1.39.1+, Node.js 24+ and npm. The PostgreSQL exercises additionally require `psql` 17+. ACR builds images in Azure, so local Docker is unnecessary.
++Install Azure CLI, Azure Developer CLI 1.37.1+, Node.js 24+ and npm. The PostgreSQL exercises additionally require `psql` 16.15+. ACR builds images in Azure, so local Docker is unnecessary.
 +
 +Use an Azure Public subscription/region with HorizonDB PostgreSQL 17, two-vCore capacity and AI Model Management for embedding, chat and reranking. Resource creation and RBAC assignment permissions are required: Owner, or Contributor plus RBAC administration. **Review model terms and costs before running.**
 +
@@ -106,7 +106,7 @@ index 0000000..bde9d00
 +Upstream: `microsoft/Build26-DEM364-simplify-app-dev-with-cloud-native-postgresql-in-azure-horizondb`, revision `74d448cde1066defc62bb17ae999f68ab1cfa9f2`. The editable local branch is `workshop/azd`; pushing to `upstream` is disabled. No GitHub-hosted fork was created.
 diff --git a/README.md b/README.md
 dissimilarity index 99%
-index 93ca390..eabb8d2 100644
+index 93ca390..448b963 100644
 --- a/README.md
 +++ b/README.md
 @@ -1,274 +1,84 @@
@@ -392,7 +392,7 @@ index 93ca390..eabb8d2 100644
 +
 +## 事前準備
 +
-+Azure CLI、Azure Developer CLI 1.39.1以降、Node.js 24以降とnpmを用意します。PostgreSQLの演習には別途`psql` 17以降が必要です。イメージはAzure上のACRでビルドするため、ローカルのDockerは不要です。
++Azure CLI、Azure Developer CLI 1.37.1以降、Node.js 24以降とnpmを用意します。PostgreSQLの演習には別途`psql` 16.15以降が必要です。イメージはAzure上のACRでビルドするため、ローカルのDockerは不要です。
 +
 +HorizonDB PostgreSQL 17、2 vCore、およびAI Model Managementの3モデルを利用できるAzure Publicのサブスクリプション・リージョンを使います。リソース作成とRBAC割り当ての権限（Owner、またはContributorとRBAC管理権限）が必要です。**モデル利用規約と費用を確認してから実行してください。**
 +
@@ -474,7 +474,7 @@ copy from README.md
 copy to README.upstream.md
 diff --git a/azure.yaml b/azure.yaml
 new file mode 100644
-index 0000000..c35c888
+index 0000000..000022c
 --- /dev/null
 +++ b/azure.yaml
 @@ -0,0 +1,47 @@
@@ -482,7 +482,7 @@ index 0000000..c35c888
 +metadata:
 +  template: zava-horizondb-workshop
 +requiredVersions:
-+  azd: '>=1.39.1'
++  azd: '>=1.37.1'
 +infra:
 +  provider: bicep
 +  path: infra
