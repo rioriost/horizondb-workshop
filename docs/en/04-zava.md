@@ -19,9 +19,30 @@ Initialization reuses the catalog, embeddings and graph from the SQL exercises a
 
 For a standalone demonstration starting from an empty environment, run **`azd up`** in the fork. It also initializes the catalog, search indexes and graph automatically.
 
+## Allow browser HTTPS access
+
+When the command environment and browser have different network addresses, as with Cloud Shell, allow the browser's IPv4 separately. Open the [IPv4 lookup page](https://api.ipify.org) **in the browser that will use Zava**, then set the returned address:
+
+```bash
+cd "$WORKSHOP_ROOT/zava"
+azd env set AZURE_HTTP_CLIENT_IP '<browser-source-IPv4>'
+azd provision
+```
+
+Skip this additional step if configured before initial provisioning. After deployment, `azd env set` alone does not update the actual access restrictions; apply with `azd provision`, then reopen the URL. Enter only the IPv4 address; `/32` is added automatically.
+
+To configure access manually in Azure portal, edit `workshop-browser` or add it if absent:
+
+| Host | Portal location | Allow rule |
+| --- | --- | --- |
+| Container Apps | App → Networking → Ingress → IP Restrictions | `workshop-browser`, Allow, browser IPv4 `/32` |
+| App Service | Web App → Networking → Public network access → Access Restrictions (main site) | `workshop-browser`, Allow, priority 101, browser IPv4 `/32` |
+
+Select **Save** after editing in the portal. Also save the same address in `AZURE_HTTP_CLIENT_IP` so the next provision does not revert a portal edit. Keep `workshop-client` for post-deployment checks and deny unmatched IPs. Never open `0.0.0.0/0`. The browser address does not need a database firewall rule.
+
 ## Use the application
 
-Open the reported URL from the permitted client network. Click **Design My Room**, then inspect **Agent Details**.
+Open the reported URL from the permitted browser network. For HTTP 403, check the HTTPS restrictions above and the browser's current IPv4. Click **Design My Room**, then inspect **Agent Details**.
 
 | Stage | Actual operation |
 | --- | --- |

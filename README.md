@@ -21,6 +21,8 @@
 
 必要なものは、Azureサブスクリプションとリソース作成・RBAC割り当ての権限、`psql` 16.15以降、Azure CLI (`az`)、Azure Developer CLI (`azd`) 1.37.1以降、Node.js 24以降、npm、Gitです。導入と認証、教材の取得は[事前準備の手順](docs/ja/prerequisites.md)にまとめています。
 
+**Azure Cloud Shell（Bash）でも実行できます。** Cloud Shellを使う場合は、DB接続元とは別に、ブラウザーの接続元IPv4を`AZURE_HTTP_CLIENT_IP`に登録します。
+
 ハンズオンでは、最初に`azd provision`でDBとアプリの実行基盤を作成し、SQL演習の後に`azd deploy`でアプリを公開します。アプリだけを一括で試す場合は、準備したローカルforkの`zava/`で`azd up`を実行します。
 
 **アプリの標準構成はAzure Container Appsです。** コンテナーはAzure Container Registryでビルドするため、ローカルのDockerは不要です。App Serviceを選ぶ方法は[アプリの手順](docs/ja/04-zava.md)に記載しています。

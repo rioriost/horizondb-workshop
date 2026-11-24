@@ -25,13 +25,13 @@ Bicep and azd hooks automate these settings; do not duplicate resources through 
 | Preload | `pg_textsearch,pg_durable,age` |
 | Parameter assignment | Associate after creation; Restart only for pending static changes |
 | AI Model Management | Enable via update API; use managed embedding/chat/reranker aliases |
-| Database firewall | Client IPv4 and fixed NAT Gateway outbound IPv4 only |
-| Application access | Client IP restriction and HTTPS |
+| Database firewall | Execution environment's `AZURE_CLIENT_IP` and fixed NAT Gateway outbound IPv4 only |
+| Application access | Execution environment and browser `AZURE_HTTP_CLIENT_IP` allowed; HTTPS only |
 | Key Vault connectivity | VNet, private endpoint and private DNS; public access disabled |
 | Endpoint | Read the service-generated cluster ReadWrite hostname |
 | Credentials | Private azd environment and Key Vault; app identity reads only its own secret |
 
-Database access is not opened to every IP/Azure service, and TLS validation stays enabled. This configuration requires permitted public client access to the database and application.
+Database access is not opened to every IP/Azure service, and TLS validation stays enabled. This configuration requires public database access from the local terminal or Cloud Shell and public application access from the browser.
 
 ## Gate for the next chapter
 

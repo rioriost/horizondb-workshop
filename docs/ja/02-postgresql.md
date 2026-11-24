@@ -21,7 +21,7 @@ SHOW transaction_read_only;
 \i sql/01-postgresql.sql
 ```
 
-`\conninfo`にTLS接続が表示され、`transaction_read_only`は`off`であることを確認します。スクリプトは`workshop`スキーマを新規作成して[同梱CSV](../../data/products.csv)を`\copy`で取り込みます。`\copy`はPC側のファイルを読み込むため、サーバーにCSVをアップロードする必要はありません。
+`\conninfo`にTLS接続が表示され、`transaction_read_only`は`off`であることを確認します。スクリプトは`workshop`スキーマを新規作成して[同梱CSV](../../data/products.csv)を`\copy`で取り込みます。`\copy`はpsqlの実行環境（PCまたはCloud Shell）のファイルを読み込むため、DBサーバーにCSVをアップロードする必要はありません。
 
 ## 実行したSQLを確認
 
@@ -44,7 +44,7 @@ SHOW transaction_read_only;
 | パスワード認証失敗 | 正しいユーザー名とパスワードを確認。ホスト名にユーザー名を付け足さない |
 | 証明書検証失敗 | 公式エンドポイントとルートCAのパス・内容を確認。`sslmode=require`への変更で回避しない |
 | read-onlyエラー | read/write endpointに接続し直す |
-| CSVが見つからない | `\! pwd`で教材ルートか確認。`\copy`の相対パスはPC側の作業ディレクトリ基準 |
+| CSVが見つからない | `\! pwd`で教材ルートか確認。`\copy`の相対パスはpsqlの実行環境の作業ディレクトリ基準 |
 | `schema workshop already exists` | セットアップ済み。再実行せず次章へ進む。不明な既存スキーマを削除しない |
 | 文字化け | UTF-8のターミナルを使う。スクリプトはUTF-8取り込みを指定済み |
 

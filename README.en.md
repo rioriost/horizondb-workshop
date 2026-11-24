@@ -21,6 +21,8 @@ Times are a guide. Resource creation, deletion and managed-model preparation can
 
 You need an Azure subscription with resource-creation and RBAC-assignment permissions, `psql` 16.15+, Azure CLI (`az`), Azure Developer CLI (`azd`) 1.37.1+, Node.js 24+, npm and Git. See [prerequisites](docs/en/prerequisites.md) for installation, authentication and workshop setup.
 
+**Azure Cloud Shell (Bash) is also supported.** When using Cloud Shell, register the browser's source IPv4 separately from the database client's address in `AZURE_HTTP_CLIENT_IP`.
+
 Start with `azd provision` to create the database and application infrastructure, then run `azd deploy` after the SQL exercises. For a standalone demo, run `azd up` in the prepared local `zava/` fork.
 
 **Azure Container Apps is the default host.** Azure Container Registry builds the image remotely; local Docker is unnecessary. The [application chapter](docs/en/04-zava.md) also explains how to select App Service.

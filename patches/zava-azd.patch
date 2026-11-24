@@ -16,10 +16,10 @@ index b1d1133..2d7d49b 100644
  node_modules/
 diff --git a/README.en.md b/README.en.md
 new file mode 100644
-index 0000000..0289f66
+index 0000000..9dd4de0
 --- /dev/null
 +++ b/README.en.md
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,88 @@
 +# Zava Designer Agent — HorizonDB workshop fork
 +
 +[日本語](README.md)
@@ -43,6 +43,8 @@ index 0000000..0289f66
 +
 +Use letters, digits and hyphens in the environment name and a region ID such as `japaneast`. Authenticate both CLIs with the same account. Changing shared global defaults is unnecessary. Initial database creation and managed-model preparation can take some time.
 +
++Cloud Shell (Bash) is supported too. Check the tools above, including Node.js 24+, and work under `$HOME` with attached storage. Before `azd up` in Cloud Shell, set `azd env set AZURE_HTTP_CLIENT_IP '<browser-source-IPv4>'`. Open `https://api.ipify.org` in your browser to find its IPv4, not Cloud Shell's address.
++
 +## What is automated
 +
 +| Resource | Lab configuration |
@@ -58,7 +60,7 @@ index 0000000..0289f66
 +
 +Hooks associate the custom parameter group after pool creation, restart only for pending static changes, and enable AI Model Management through its update API. Deployment verifies static UI assets, database health and a real six-stage design request.
 +
-+Generated credentials are not printed or passed in process arguments. They remain in permission-restricted `.azure/<environment>/.env` and Key Vault; never commit environment files. Database access is limited to the client and fixed NAT egress IPv4. Application access is limited to the client IP, discovered with `api.ipify.org`. Set `AZURE_CLIENT_IP` explicitly with `azd env set` if necessary. TLS certificate/hostname validation stays enabled.
++Generated credentials are not printed or passed in process arguments. They remain in permission-restricted `.azure/<environment>/.env` and Key Vault; never commit environment files. Database access is limited to the execution environment's `AZURE_CLIENT_IP` and fixed NAT egress IPv4. The execution address is discovered using `api.ipify.org` and can be set explicitly. Set the browser IPv4 separately with `AZURE_HTTP_CLIENT_IP`, defaulting to the execution address. HTTPS allows the execution environment for post-deployment checks and the browser; equal addresses produce one rule. TLS certificate/hostname validation stays enabled.
 +
 +Reruns preserve existing products and embeddings. Unexpected catalog counts or unavailable AI features cause explicit errors. This is a temporary lab, not a production availability/network design. Vault purge protection is disabled to allow cleanup of temporary credentials.
 +
@@ -78,6 +80,8 @@ index 0000000..0289f66
 +An already provisioned environment cannot change hosts. Create a new environment and configure its subscription/region to switch. The explicit Container Apps value is `containerapp`.
 +
 +## Use the application
++
++After changing the browser IP with `azd env set AZURE_HTTP_CLIENT_IP '<browser-source-IPv4>'`, apply it using `azd provision`. For manual portal configuration, add/edit `workshop-browser` as an Allow IPv4 `/32` rule in Container Apps ingress or App Service access restrictions, and save the same value in azd. Use priority 101 for App Service. Keep `workshop-client` for automatic checks and deny unmatched IPs. The browser address does not need a database firewall rule.
 +
 +Open the reported URL and click **Design My Room**. Change theme, budget and priorities, then inspect **Agent Details** for real generation, schema inspection, hybrid search, AGE traversal, SQL filtering and reranking traces.
 +
@@ -106,10 +110,10 @@ index 0000000..0289f66
 +Upstream: `microsoft/Build26-DEM364-simplify-app-dev-with-cloud-native-postgresql-in-azure-horizondb`, revision `74d448cde1066defc62bb17ae999f68ab1cfa9f2`. The editable local branch is `workshop/azd`; pushing to `upstream` is disabled. No GitHub-hosted fork was created.
 diff --git a/README.md b/README.md
 dissimilarity index 99%
-index 93ca390..448b963 100644
+index 93ca390..8cb73fa 100644
 --- a/README.md
 +++ b/README.md
-@@ -1,274 +1,84 @@
+@@ -1,274 +1,88 @@
 -<a name="start-building"></a>
 -<br>
 -<p align="center">
@@ -407,6 +411,8 @@ index 93ca390..448b963 100644
 +
 +環境名には英数字とハイフン、リージョンには`japaneast`のようなIDを使います。`az`と`azd`は同じAzureアカウントで認証してください。共有PCの既定サブスクリプションを変更する必要はありません。初回はDBの作成や管理モデルの準備に時間がかかります。
 +
++Cloud Shell（Bash）でも実行できます。Node.js 24以降を含む上記ツールを確認し、ストレージを接続した`$HOME`配下で作業してください。Cloud Shellを使う場合は、`azd up`の前にブラウザーのIPv4を`azd env set AZURE_HTTP_CLIENT_IP '<ブラウザーの接続元IPv4>'`で設定します。ブラウザーで`https://api.ipify.org`を開いて確認し、Cloud ShellのIPとは区別してください。
++
 +## 自動で作成するもの
 +
 +| 対象 | ハンズオン用の構成 |
@@ -422,7 +428,7 @@ index 93ca390..448b963 100644
 +
 +HorizonDBの仕様に従い、pool作成後にパラメーターグループを割り当て、必要な場合のみRestartします。AI Model Managementも作成後の更新APIで有効化します。成功時は画面配信、DB接続、6段階の実デザイン要求まで自動確認します。
 +
-+パスワードはコマンド引数やログに出さず、権限を制限した`.azure/<環境名>/.env`とKey Vaultに保存します。環境フォルダーはコミットしないでください。DBは初期化PCとNAT Gatewayの固定送信元IP、アプリはPCのIPだけを許可します。公開IPの自動判定には`api.ipify.org`を使います。必要なら実行前に`azd env set AZURE_CLIENT_IP '<実際のIPv4>'`で指定します。TLSの証明書・ホスト名検証は有効です。
++パスワードはコマンド引数やログに出さず、権限を制限した`.azure/<環境名>/.env`とKey Vaultに保存します。環境フォルダーはコミットしないでください。DBは実行環境の`AZURE_CLIENT_IP`とNAT Gatewayの固定送信元IPだけを許可します。実行環境のIPは`api.ipify.org`で自動取得し、必要なら明示指定できます。ブラウザーのIPv4は別の`AZURE_HTTP_CLIENT_IP`で指定します。省略時は実行環境と同じ値です。HTTPSは配信後の動作確認用の実行環境とブラウザーのIPを許可し、同じIPなら1ルールにします。TLSの証明書・ホスト名検証は有効です。
 +
 +既存の商品とEmbeddingは再実行時に上書きしません。商品数が想定と異なる場合や必要なAI機能が使えない場合は、エラーで停止します。この構成は短時間の演習用です。Key Vaultのpurge protectionは無効にし、終了時に秘密情報も削除できるようにしています。
 +
@@ -442,6 +448,8 @@ index 93ca390..448b963 100644
 +デプロイ済みの環境でホスティング先は変更できません。切り替える場合は新しい環境を作り、サブスクリプションとリージョンを設定してください。Container Appsを明示的に選ぶ値は`containerapp`です。
 +
 +## 画面で試す
++
++ブラウザーのIPを変更した場合は、`azd env set AZURE_HTTP_CLIENT_IP '<ブラウザーの接続元IPv4>'`の後に`azd provision`で反映します。Portalで手動設定する場合はContainer Appsのイングレス、またはApp Serviceのアクセス制限で`workshop-browser`をAllowのIPv4 `/32`として追加・編集し、同じ値をazdにも保存します。App Serviceの優先度は101です。自動確認用の`workshop-client`と、未許可IPの拒否設定は維持してください。ブラウザーのIPをDBのFirewallに追加する必要はありません。
 +
 +表示されたURLで**Design My Room**を押し、テーマ、予算、優先カテゴリを変えて再実行します。**Agent Details**で生成、スキーマ参照、ハイブリッド検索、AGE、SQLフィルター、リランクの実トレースを確認します。
 +
@@ -552,14 +560,14 @@ index 0000000..6c9f8a4
 +18,Monochrome City Print,モノクロの街並みプリント,decor,40.00,4.1,industrial,Industrial monochrome city wall art with a black metal frame. Graphic decoration for an exposed brick loft.
 diff --git a/infra/container-app.bicep b/infra/container-app.bicep
 new file mode 100644
-index 0000000..cd5e424
+index 0000000..7d998e2
 --- /dev/null
 +++ b/infra/container-app.bicep
-@@ -0,0 +1,123 @@
+@@ -0,0 +1,121 @@
 +param location string
 +param tags object
 +param token string
-+param clientIp string
++param httpClientIps string[]
 +param vaultUri string
 +param identityName string
 +param identityResourceId string
@@ -629,13 +637,11 @@ index 0000000..cd5e424
 +    targetPort: 8080
 +    ingressAllowInsecure: false
 +    revisionMode: 'Single'
-+    ipSecurityRestrictions: [
-+      {
-+        name: 'workshop-client'
-+        action: 'Allow'
-+        ipAddressRange: '${clientIp}/32'
-+      }
-+    ]
++    ipSecurityRestrictions: [for (ip, index) in httpClientIps: {
++      name: index == 0 ? 'workshop-client' : 'workshop-browser'
++      action: 'Allow'
++      ipAddressRange: '${ip}/32'
++    }]
 +    secrets: [
 +      {
 +        name: 'db-app-password'
@@ -681,10 +687,10 @@ index 0000000..cd5e424
 +output infrastructureGroupName string = infrastructureGroupName
 diff --git a/infra/main.bicep b/infra/main.bicep
 new file mode 100644
-index 0000000..7767a54
+index 0000000..8e075aa
 --- /dev/null
 +++ b/infra/main.bicep
-@@ -0,0 +1,62 @@
+@@ -0,0 +1,65 @@
 +targetScope = 'subscription'
 +
 +@minLength(1)
@@ -707,6 +713,8 @@ index 0000000..7767a54
 +
 +param clientIp string
 +
++param httpClientIp string = clientIp
++
 +var tags = {
 +  'azd-env-name': environmentName
 +  purpose: 'horizondb-workshop'
@@ -728,6 +736,7 @@ index 0000000..7767a54
 +    administratorPassword: administratorPassword
 +    applicationPassword: applicationPassword
 +    clientIp: clientIp
++    httpClientIp: httpClientIp
 +  }
 +}
 +
@@ -749,10 +758,10 @@ index 0000000..7767a54
 +output SERVICE_WEB_ENDPOINT string = 'https://${resources.outputs.webHostname}'
 diff --git a/infra/main.parameters.json b/infra/main.parameters.json
 new file mode 100644
-index 0000000..062bc8c
+index 0000000..323aefa
 --- /dev/null
 +++ b/infra/main.parameters.json
-@@ -0,0 +1,12 @@
+@@ -0,0 +1,13 @@
 +{
 +  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
 +  "contentVersion": "1.0.0.0",
@@ -762,7 +771,8 @@ index 0000000..062bc8c
 +    "hostingTarget": { "value": "${AZURE_HOSTING_TARGET=containerapp}" },
 +    "administratorPassword": { "value": "${PG_ADMIN_PASSWORD}" },
 +    "applicationPassword": { "value": "${PG_APP_PASSWORD}" },
-+    "clientIp": { "value": "${AZURE_CLIENT_IP}" }
++    "clientIp": { "value": "${AZURE_CLIENT_IP}" },
++    "httpClientIp": { "value": "${AZURE_HTTP_CLIENT_IP}" }
 +  }
 +}
 diff --git a/infra/network.bicep b/infra/network.bicep
@@ -849,10 +859,10 @@ index 0000000..1e19340
 +output egressIp string = publicIp.outputs.ipAddress
 diff --git a/infra/resources.bicep b/infra/resources.bicep
 new file mode 100644
-index 0000000..90ed938
+index 0000000..6320d20
 --- /dev/null
 +++ b/infra/resources.bicep
-@@ -0,0 +1,265 @@
+@@ -0,0 +1,267 @@
 +param location string
 +param tags object
 +
@@ -866,11 +876,15 @@ index 0000000..90ed938
 +
 +param clientIp string
 +
++param httpClientIp string
++
 +var token = uniqueString(resourceGroup().id)
 +var vaultName = 'kvzava${token}'
 +var vaultUri = 'https://${vaultName}${environment().suffixes.keyvaultDns}'
 +var poolName = 'primary'
 +var useContainerApps = hostingTarget == 'containerapp'
++// Postdeploy verification also needs HTTPS access from the deployment client.
++var httpClientIps = union([clientIp], [httpClientIp])
 +
 +// HorizonDB has no published AVM module. Use its official preview ARM contract.
 +resource cluster 'Microsoft.HorizonDb/clusters@2026-10-01-preview' = {
@@ -1000,14 +1014,12 @@ index 0000000..90ed938
 +      minTlsVersion: '1.2'
 +      ftpsState: 'Disabled'
 +      ipSecurityRestrictionsDefaultAction: 'Deny'
-+      ipSecurityRestrictions: [
-+        {
-+          name: 'workshop-client'
-+          ipAddress: '${clientIp}/32'
-+          action: 'Allow'
-+          priority: 100
-+        }
-+      ]
++      ipSecurityRestrictions: [for (ip, index) in httpClientIps: {
++        name: index == 0 ? 'workshop-client' : 'workshop-browser'
++        ipAddress: '${ip}/32'
++        action: 'Allow'
++        priority: 100 + index
++      }]
 +    }
 +    configs: [
 +      {
@@ -1095,7 +1107,7 @@ index 0000000..90ed938
 +    location: location
 +    tags: tags
 +    token: token
-+    clientIp: clientIp
++    httpClientIps: httpClientIps
 +    vaultUri: vaultUri
 +    identityName: identity!.outputs.name
 +    identityResourceId: identity!.outputs.resourceId
@@ -1120,10 +1132,10 @@ index 0000000..90ed938
 +output infrastructureGroupName string = useContainerApps ? containerApp!.outputs.infrastructureGroupName : ''
 diff --git a/scripts/azure.mjs b/scripts/azure.mjs
 new file mode 100644
-index 0000000..eb2fe22
+index 0000000..acd4d9b
 --- /dev/null
 +++ b/scripts/azure.mjs
-@@ -0,0 +1,171 @@
+@@ -0,0 +1,183 @@
 +import { execFile } from 'node:child_process';
 +import { promisify } from 'node:util';
 +import { isIPv4 } from 'node:net';
@@ -1166,6 +1178,18 @@ index 0000000..eb2fe22
 +    throw new Error('The application did not return valid outbound IPv4 addresses.');
 +  }
 +  return addresses;
++}
++
++export function clientAccessIps(values) {
++  const clientIp = values.AZURE_CLIENT_IP;
++  const httpClientIp = values.AZURE_HTTP_CLIENT_IP === undefined
++    ? clientIp : values.AZURE_HTTP_CLIENT_IP;
++  for (const [name, ip] of [['AZURE_CLIENT_IP', clientIp], ['AZURE_HTTP_CLIENT_IP', httpClientIp]]) {
++    if (typeof ip !== 'string' || !isIPv4(ip) || ip === '0.0.0.0') {
++      throw new Error(`${name} must be a single IPv4 address, without CIDR notation or an allow-all rule.`);
++    }
++  }
++  return { clientIp, httpClientIp };
 +}
 +
 +export function hostingTarget(values, requireProvisioned = false) {
@@ -1442,17 +1466,16 @@ index 0000000..1299c5e
 +}
 diff --git a/scripts/hooks.mjs b/scripts/hooks.mjs
 new file mode 100644
-index 0000000..173f993
+index 0000000..5d34883
 --- /dev/null
 +++ b/scripts/hooks.mjs
-@@ -0,0 +1,243 @@
+@@ -0,0 +1,241 @@
 +import { randomBytes, X509Certificate } from 'node:crypto';
-+import { isIPv4 } from 'node:net';
 +import { mkdir, readFile, writeFile, chmod } from 'node:fs/promises';
 +import { fileURLToPath } from 'node:url';
 +import { setTimeout as sleep } from 'node:timers/promises';
 +import {
-+  azureClient, cli, containerApi, containerDatabaseHost, environment, firewallIps,
++  azureClient, cli, clientAccessIps, containerApi, containerDatabaseHost, environment, firewallIps,
 +  horizonApi, hostingTarget, needsRestart,
 +  readWriteHostname, requireValues, setEnvironment, waitForResource, webApi,
 +} from './azure.mjs';
@@ -1510,10 +1533,9 @@ index 0000000..173f993
 +    if (!response.ok) throw new Error(`Client IPv4 discovery failed: HTTP ${response.status}. Set AZURE_CLIENT_IP explicitly.`);
 +    clientIp = (await response.json()).ip;
 +  }
-+  if (!isIPv4(clientIp) || clientIp === '0.0.0.0') {
-+    throw new Error('AZURE_CLIENT_IP must be the client IPv4 address, not an allow-all-Azure rule.');
-+  }
-+  await setEnvironment('AZURE_CLIENT_IP', clientIp);
++  const access = clientAccessIps({ ...values, AZURE_CLIENT_IP: clientIp });
++  await setEnvironment('AZURE_CLIENT_IP', access.clientIp);
++  await setEnvironment('AZURE_HTTP_CLIENT_IP', access.httpClientIp);
 +  const envFile = new URL(`../.azure/${values.AZURE_ENV_NAME}/.env`, import.meta.url);
 +  await chmod(envFile, 0o600);
 +  await chmod(new URL(`../.azure/${values.AZURE_ENV_NAME}/`, import.meta.url), 0o700);
@@ -2792,14 +2814,14 @@ index 0bba713..5f0e309 100644
                  <span className="design-btn-sparkle">✨</span>
 diff --git a/tests/deployment.test.mjs b/tests/deployment.test.mjs
 new file mode 100644
-index 0000000..a286304
+index 0000000..d8136fc
 --- /dev/null
 +++ b/tests/deployment.test.mjs
-@@ -0,0 +1,94 @@
+@@ -0,0 +1,116 @@
 +import test from 'node:test';
 +import assert from 'node:assert/strict';
 +import {
-+  containerDatabaseHost, firewallIps, hostingTarget, needsRestart, readWriteHostname, waitForOperation,
++  clientAccessIps, containerDatabaseHost, firewallIps, hostingTarget, needsRestart, readWriteHostname, waitForOperation,
 +} from '../scripts/azure.mjs';
 +
 +test('use the service-generated cluster writer instead of a pool reader', () => {
@@ -2825,6 +2847,28 @@ index 0000000..a286304
 +  assert.throws(() => firewallIps('20.1.2.3,0.0.0.0/0'), /IPv4/);
 +  assert.throws(() => firewallIps('0.0.0.0'), /IPv4/);
 +  assert.throws(() => firewallIps(undefined), /IPv4/);
++});
++
++test('separate the browser IPv4 from the database client and preserve the local-client default', () => {
++  assert.deepEqual(clientAccessIps({ AZURE_CLIENT_IP: '198.51.100.10' }), {
++    clientIp: '198.51.100.10', httpClientIp: '198.51.100.10',
++  });
++  assert.deepEqual(clientAccessIps({
++    AZURE_CLIENT_IP: '198.51.100.10', AZURE_HTTP_CLIENT_IP: '203.0.113.20',
++  }), { clientIp: '198.51.100.10', httpClientIp: '203.0.113.20' });
++});
++
++test('reject invalid database or browser IPs instead of falling back or opening access', () => {
++  for (const ip of ['', null, '0.0.0.0', '0.0.0.0/0', '203.0.113.20/32', '::1']) {
++    assert.throws(() => clientAccessIps({
++      AZURE_CLIENT_IP: '198.51.100.10', AZURE_HTTP_CLIENT_IP: ip,
++    }), /AZURE_HTTP_CLIENT_IP.*single IPv4/);
++    assert.throws(() => clientAccessIps({
++      AZURE_CLIENT_IP: ip, AZURE_HTTP_CLIENT_IP: '203.0.113.20',
++    }), /AZURE_CLIENT_IP.*single IPv4/);
++  }
++  assert.throws(() => clientAccessIps({ AZURE_HTTP_CLIENT_IP: '203.0.113.20' }),
++    /AZURE_CLIENT_IP.*single IPv4/);
 +});
 +
 +test('default to Container Apps and reject unknown or mismatched hosting targets', () => {

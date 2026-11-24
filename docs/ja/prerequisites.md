@@ -49,6 +49,16 @@ azd auth login
 
 両CLIを同じアカウントで認証します。共有環境のグローバル設定や既定サブスクリプションを変更せず、以下で環境ごとに指定できます。
 
+## Azure Cloud Shellで実行する場合
+
+ローカルPCの代わりに、Azure Portalの[Cloud Shell](https://shell.azure.com/)で**Bash**を選び、この後の教材取得、デプロイ、psql演習を実行できます。プリインストール済みのツールも、上記のバージョン確認コマンドで要件を満たすことを確認してください。Node.jsが24未満の場合は、[nvmの公式手順](https://github.com/nvm-sh/nvm#installing-and-updating)で`$HOME`にnvmを導入し、`nvm install 24`と`nvm use 24`で対応バージョンを選びます。
+
+Cloud ShellのAzure CLIは認証済みなので、`az login`は不要です。azdは同じアカウントで`azd auth login --use-device-code`を実行します。組織の認証ポリシーで利用できない場合は、管理者に確認してください。
+
+**ストレージを接続し、教材を`$HOME`配下に取得してください。** ストレージなしの一時セッションでは、終了時にazdの環境情報とパスワードも失われます。ストレージへのアクセス権限も制限してください。Cloud Shell用ストレージには別途料金がかかる場合があります。[ファイルの永続化](https://learn.microsoft.com/azure/cloud-shell/persisting-shell-storage)
+
+Cloud Shellの送信元IPとブラウザーの送信元IPは異なります。環境作成後、次の節の手順でブラウザーのIPv4を手動設定してから、最初のデプロイに進んでください。
+
 ## 教材とローカルfork
 
 教材を取得してルートで実行します。ローカルforkは親Gitから独立し、元のコミットと教材同梱パッチから再現します。上流の未公開SQLやGitHubへのpushは不要です。
@@ -71,8 +81,27 @@ cd "$WORKSHOP_ROOT"
 
 準備スクリプトは既存forkを上書きしません。公開ルートCAを公式配布元から取得し、TLSの証明書・ホスト名検証に使います。デプロイ時に生成するパスワードは`zava/.azure/`の環境ファイルとKey Vaultに保存します。環境ファイルをコミット・画面共有しないでください。
 
+## DB接続元とブラウザーのIPv4
+
+| パラメーター | 用途 | 省略時 |
+| --- | --- | --- |
+| `AZURE_CLIENT_IP` | デプロイ・psql実行環境のIPv4。DBのFirewallと配信後のHTTPS動作確認に使用 | 実行環境から`api.ipify.org`で自動取得 |
+| `AZURE_HTTP_CLIENT_IP` | Zavaを開くブラウザーの接続元IPv4。HTTPSアクセスだけに使用 | `AZURE_CLIENT_IP`と同じ値 |
+
+Cloud Shellを使う場合、**PCのブラウザーで**[IPv4確認ページ](https://api.ipify.org)を開き、表示されたIPv4を控えます。Cloud Shell内のコマンドで取得した値はブラウザーのIPではありません。環境作成後、Cloud Shellで設定します。
+
+```bash
+cd "$WORKSHOP_ROOT/zava"
+azd env set AZURE_HTTP_CLIENT_IP '<ブラウザーの接続元IPv4>'
+cd "$WORKSHOP_ROOT"
+```
+
+IPv4を1つ指定し、`/32`は付けません。DBのFirewallには実行環境のIPとアプリの固定送信元IPだけを登録し、ブラウザーのIPは追加しません。HTTPSは実行環境とブラウザーのIPを許可し、それ以外を拒否します。同じIPなら許可ルールは1件です。
+
+Cloud Shellの再接続やVPN・回線の変更で実行環境のIPが変わった場合は、`AZURE_CLIENT_IP`も現在の値に更新し、`azd provision`で反映します。デプロイ後にブラウザーのIPを変更する方法は[Zavaのアクセス手順](04-zava.md#ブラウザーのhttpsアクセスを許可する)を参照してください。
+
 プロバイダー登録が必要な場合は、対象サブスクリプションを指定して管理者に依頼します。標準構成は`Microsoft.HorizonDb`、`Microsoft.App`、`Microsoft.ContainerRegistry`、`Microsoft.Network`、`Microsoft.ManagedIdentity`、`Microsoft.KeyVault`、`Microsoft.OperationalInsights`を使います。App Serviceを選ぶ場合は`Microsoft.Web`も必要です。
 
-PCからTCP 5432と、Azure、GitHub、npm、公開CA配布元へのHTTPSが必要です。IP自動判定には`api.ipify.org`を使います。VPN・会場回線でIPが変わる場合は、事前に`azd env set AZURE_CLIENT_IP '<実際のIPv4>'`で指定します。各参加者が別のクラスターを使用し、実データ・個人の写真・秘密情報を投入しません。
+実行環境からTCP 5432と、Azure、GitHub、npm、公開CA配布元、`api.ipify.org`へのHTTPSが必要です。ブラウザーからはZavaへのHTTPSを許可します。各参加者が別のクラスターを使用し、実データ・個人の写真・秘密情報を投入しません。
 
 次へ: [1. HorizonDBのデプロイ](01-deploy.md)

@@ -49,6 +49,16 @@ azd auth login
 
 Authenticate both CLIs with the same account. Configure the environment rather than changing shared global defaults.
 
+## Using Azure Cloud Shell
+
+Instead of a local terminal, select **Bash** in Azure portal's [Cloud Shell](https://shell.azure.com/) and run the workshop setup, deployment and psql exercises there. Check the preinstalled tools against the version requirements above. If Node.js is older than 24, follow the [official nvm instructions](https://github.com/nvm-sh/nvm#installing-and-updating) to install nvm under `$HOME`, then run `nvm install 24` and `nvm use 24`.
+
+Cloud Shell's Azure CLI is already authenticated, so `az login` is unnecessary. Authenticate azd with the same account using `azd auth login --use-device-code`. Consult your administrator if organizational authentication policy prevents this.
+
+**Attach storage and clone the workshop under `$HOME`.** Ephemeral sessions lose azd environment files and passwords when closed. Restrict access to that storage as well. Cloud Shell storage can incur separate charges. See [file persistence](https://learn.microsoft.com/azure/cloud-shell/persisting-shell-storage).
+
+Cloud Shell and your browser have different source IPs. After creating the environment, manually configure the browser IPv4 as described below before the first deployment.
+
 ## Workshop and local fork
 
 From the workshop root, reconstruct the independent local fork from the pinned upstream commit and included patch. No unpublished SQL or upstream push is needed.
@@ -71,8 +81,27 @@ Choose a unique environment name and a region ID such as `japaneast`. Container 
 
 Preparation preserves an existing fork and downloads official public root certificates for TLS validation. Deployment-generated passwords remain in private `zava/.azure/` environment files and Key Vault. Never commit or screen-share environment files.
 
+## Database client and browser IPv4
+
+| Parameter | Purpose | Default |
+| --- | --- | --- |
+| `AZURE_CLIENT_IP` | IPv4 of the deployment/psql environment; database firewall and post-deployment HTTPS checks | Discovered from the execution environment using `api.ipify.org` |
+| `AZURE_HTTP_CLIENT_IP` | Source IPv4 of the browser opening Zava; HTTPS access only | Same as `AZURE_CLIENT_IP` |
+
+For Cloud Shell, open the [IPv4 lookup page](https://api.ipify.org) **in your PC's browser** and record the address. A command inside Cloud Shell returns Cloud Shell's address, not the browser's. After creating the environment, set this in Cloud Shell:
+
+```bash
+cd "$WORKSHOP_ROOT/zava"
+azd env set AZURE_HTTP_CLIENT_IP '<browser-source-IPv4>'
+cd "$WORKSHOP_ROOT"
+```
+
+Supply one IPv4 without `/32`. The database firewall permits only the execution environment and the application's fixed egress IP, not the browser address. HTTPS permits the execution environment and browser addresses and denies all others. Equal addresses produce one rule.
+
+After a Cloud Shell reconnect or a VPN/network change, update `AZURE_CLIENT_IP` if the execution address changed and apply it with `azd provision`. See [Zava access instructions](04-zava.md#allow-browser-https-access) to change the browser address after deployment.
+
 If provider registration is needed, ask an administrator to select the subscription explicitly. The default uses `Microsoft.HorizonDb`, `Microsoft.App`, `Microsoft.ContainerRegistry`, `Microsoft.Network`, `Microsoft.ManagedIdentity`, `Microsoft.KeyVault` and `Microsoft.OperationalInsights`. App Service additionally needs `Microsoft.Web`.
 
-Allow outbound TCP 5432 and HTTPS to Azure, GitHub, npm and certificate distributors. Automatic public-IP discovery uses `api.ipify.org`; set `AZURE_CLIENT_IP` explicitly with `azd env set` when venue/VPN networking requires it. Use separate participant clusters and no real customer data, personal photos or secrets.
+Allow outbound TCP 5432 and HTTPS from the execution environment to Azure, GitHub, npm, certificate distributors and `api.ipify.org`. Permit browser HTTPS access to Zava. Use separate participant clusters and no real customer data, personal photos or secrets.
 
 Next: [1. Deploy HorizonDB](01-deploy.md)

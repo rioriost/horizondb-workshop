@@ -21,7 +21,7 @@ SHOW transaction_read_only;
 \i sql/01-postgresql.sql
 ```
 
-Confirm TLS in `\conninfo` and `off` for `transaction_read_only`. The script creates a new `workshop` schema and imports the [included CSV](../../data/products.csv). `\copy` reads the client-side file; uploading it to the database server is unnecessary.
+Confirm TLS in `\conninfo` and `off` for `transaction_read_only`. The script creates a new `workshop` schema and imports the [included CSV](../../data/products.csv). `\copy` reads files in the psql execution environment (local PC or Cloud Shell); uploading them to the database server is unnecessary.
 
 ## Observe standard SQL behavior
 

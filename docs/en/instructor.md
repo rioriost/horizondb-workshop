@@ -10,6 +10,8 @@ On an empty dedicated cluster, execute SQL 01–07 and inspect 08. Expect 18 emb
 
 Rehearse venue-network TLS, database firewalls, application IP restrictions, fixed NAT egress and private Key Vault connectivity. Run `azd up` from an empty environment, then `azd down --purge`; verify the dedicated group, Container Apps-managed group and deleted vault are gone. For teaching, use `azd provision` → SQL exercises → `azd deploy`, with npm preparation completed beforehand. Measure creation, restarts, model readiness, deployment and inference.
 
+For Cloud Shell, verify separate `AZURE_CLIENT_IP` and browser `AZURE_HTTP_CLIENT_IP` values. Allow both for HTTPS, but do not add the browser address to the database firewall. Check both the automatic verification from Cloud Shell and participant browser access.
+
 Keep a **separate instructor-owned lab cluster** ready for provisioning overruns. Do not claim participants completed deployment if switching to it. Never run participant DDL concurrently against a shared schema; use an instructor read-only demonstration or separate environments. Resolve unavailable AI capabilities before delivery rather than substituting mocks. If only app deployment is slow, use the local frontend/backend while verifying Azure completion separately later.
 
 Regional prices, quotas and response times vary. Assign someone to monitor resource deletion until completion.
@@ -24,4 +26,4 @@ node --test zava/tests/deployment.test.mjs
 az bicep build --file zava/infra/main.bicep --stdout >/dev/null
 ```
 
-There are eight standard-SQL/application/link tests and eight deployment-helper tests. Also verify the React build, Bicep, azd configuration/packages and live environment. [Sources and pinned version](../references.md)
+There are eight standard-SQL/application/link tests and ten deployment-helper tests. Also verify the React build, Bicep, azd configuration/packages and live environment. [Sources and pinned version](../references.md)

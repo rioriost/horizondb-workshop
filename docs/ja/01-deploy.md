@@ -25,13 +25,13 @@ azd provision
 | Preload | `pg_textsearch,pg_durable,age` |
 | pool割り当て | 作成後にカスタムグループを割り当て、静的変更が保留中ならRestart |
 | AI Model Management | 作成後の更新APIで有効化し、既定のEmbedding・チャット・リランカーを使用 |
-| DB Firewall | PCのIPv4とNAT Gatewayの固定送信元IPv4のみ許可 |
-| アプリへのアクセス | PCのIPだけ許可、HTTPSのみ |
+| DB Firewall | 実行環境の`AZURE_CLIENT_IP`とNAT Gatewayの固定送信元IPv4のみ許可 |
+| アプリへのアクセス | 実行環境とブラウザーの`AZURE_HTTP_CLIENT_IP`を許可、HTTPSのみ |
 | Key Vaultへの接続 | VNet、Private Endpoint、Private DNSを使い、公開アクセスは無効 |
 | 接続設定 | サービスが返すReadWrite endpointを取得。ホスト名は推測しない |
 | 秘密情報 | 私有のazd環境ファイルとKey Vault。アプリはアプリ用秘密だけ参照 |
 
-DBを全IPや全Azureサービスに開放せず、TLSの証明書検証も有効にしたまま使います。この構成は、PCからDBとアプリへの公開接続を許可した環境を対象とします。
+DBを全IPや全Azureサービスに開放せず、TLSの証明書検証も有効にしたまま使います。この構成は、PCまたはCloud ShellからDBへの接続と、ブラウザーからアプリへの公開接続を許可した環境を対象とします。
 
 ## 次に進む条件
 

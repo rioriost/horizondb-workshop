@@ -19,9 +19,30 @@ azd deploy
 
 単独デモを空の環境から実行する場合は、同じfork内で**`azd up`**を使います。この場合、SQL演習相当の18件データと検索・グラフの準備も自動実行されます。
 
+## ブラウザーのHTTPSアクセスを許可する
+
+Cloud Shellなど、コマンドの実行元とブラウザーの回線が異なる場合は、ブラウザーの接続元IPv4を別途許可します。**Zavaを開くブラウザーで**[IPv4確認ページ](https://api.ipify.org)を開き、表示された値を設定してください。
+
+```bash
+cd "$WORKSHOP_ROOT/zava"
+azd env set AZURE_HTTP_CLIENT_IP '<ブラウザーの接続元IPv4>'
+azd provision
+```
+
+初回の作成前に設定済みなら、この追加操作は不要です。デプロイ後にIPを変更した場合、`azd env set`だけでは実際のアクセス制限は変わりません。`azd provision`で反映してからURLを開き直します。`/32`は自動で付けるため、パラメーターにはIPv4だけを指定します。
+
+Azure Portalで手動設定する場合は、次の場所で`workshop-browser`を編集し、存在しなければ追加します。
+
+| ホスティング先 | 設定場所 | 許可ルール |
+| --- | --- | --- |
+| Container Apps | 対象アプリ → ネットワーク → イングレス → IP制限 | `workshop-browser`、Allow、ブラウザーのIPv4 `/32` |
+| App Service | 対象Web App → ネットワーク → パブリックネットワークアクセス → アクセス制限（メインサイト） | `workshop-browser`、Allow、優先度101、ブラウザーのIPv4 `/32` |
+
+Portalでは変更後に［保存］を押してください。同じ値を`AZURE_HTTP_CLIENT_IP`にも保存し、次回の作成時に設定が戻らないようにします。配信後の自動確認用の`workshop-client`は残し、未許可のIPを拒否する設定を維持してください。`0.0.0.0/0`で開放しません。ブラウザーのIPをDBのFirewallに追加する必要はありません。
+
 ## アプリを操作
 
-表示されたURLを、許可されたPCの回線から開きます。**Design My Room**を実行し、**Agent Details**で次の実トレースを確認します。
+表示されたURLを、許可したブラウザーの回線から開きます。HTTP 403が出る場合は、上記のHTTPSアクセス制限と現在のブラウザーのIPv4を確認してください。**Design My Room**を実行し、**Agent Details**で次の実トレースを確認します。
 
 | 段階 | 実行内容 |
 | --- | --- |
