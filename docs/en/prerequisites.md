@@ -6,7 +6,7 @@ The hour excludes account creation, tool installation and npm downloads. Command
 
 ## Azure, permissions and costs
 
-Use a subscription/region offering HorizonDB PostgreSQL 17, two-vCore capacity and AI Model Management (preview) for embedding, chat and reranking. Review and accept model terms. Managed models require no separate model deployment or API-key setup.
+Use a subscription/region offering HorizonDB PostgreSQL 17, two-vCore capacity and AI Model Management (preview) for embedding, chat and reranking. Review model terms and costs beforehand. **For a first HorizonDB deployment, accept the terms in Azure portal after the cluster is created.** Follow the [first-time enablement steps](01-deploy.md#first-time-horizondb-deployment). Once terms are accepted, the service manages model provisioning; no separate model deployment or API-key setup is required.
 
 Resource creation/deletion and managed-identity RBAC assignment require Owner, or Contributor plus RBAC administration. Use an organization-approved environment. Database/application public access is restricted to permitted source IPs; Key Vault uses a private endpoint.
 

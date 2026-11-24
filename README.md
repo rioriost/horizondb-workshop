@@ -25,6 +25,8 @@
 
 ハンズオンでは、最初に`azd provision`でDBとアプリの実行基盤を作成し、SQL演習の後に`azd deploy`でアプリを公開します。アプリだけを一括で試す場合は、準備したローカルforkの`zava/`で`azd up`を実行します。
 
+**初めてHorizonDBをデプロイする場合は、クラスター作成後にPortalで管理モデルの利用規約に同意します。** 同意待ちで構成フックが停止した場合は、同じ環境で再開します。必ず`azd provision`を2回実行するという意味ではありません。[初回の有効化と再開手順](docs/ja/01-deploy.md#初めてhorizondbをデプロイする場合)
+
 **アプリの標準構成はAzure Container Appsです。** コンテナーはAzure Container Registryでビルドするため、ローカルのDockerは不要です。App Serviceを選ぶ方法は[アプリの手順](docs/ja/04-zava.md)に記載しています。
 
 ## 同梱データとアプリ

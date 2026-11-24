@@ -13,7 +13,7 @@
 | [Create parameter groups](https://learn.microsoft.com/azure/horizondb/parameters/how-to-parameter-groups-create) | Custom groups |
 | [Load libraries](https://learn.microsoft.com/azure/horizondb/extensions/how-to-load-libraries) | Preload settings and restart semantics |
 | [Allow extensions](https://learn.microsoft.com/azure/horizondb/extensions/how-to-allow-extensions) | Extension allow list |
-| [AI Model Management](https://learn.microsoft.com/azure/horizondb/ai/ai-model-management) | Preview, managed aliases, endpoints and billing |
+| [AI Model Management](https://learn.microsoft.com/azure/horizondb/ai/ai-model-management) | Preview, managed aliases, endpoints, billing, post-creation Portal enablement and terms acceptance (rechecked 2026-11-24) |
 | [AI functions](https://learn.microsoft.com/azure/horizondb/ai/ai-functions) | embed / rank / generate / extract / is_true signatures |
 | [AI API migration](https://learn.microsoft.com/azure/horizondb/ai/migrate-ai-schema) | azure_ai 2.5.6 and direct inference versus step builders |
 | [Native AI search](https://learn.microsoft.com/azure/horizondb/ai/ai-search) | ctid output, BM25/vector indexes, RRF, reranking, post-filters |

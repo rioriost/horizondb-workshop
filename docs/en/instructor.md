@@ -6,6 +6,8 @@ Container Apps is the default. Rehearse provisioning, SQL, application use and c
 
 Verify subscription, budget, permissions, region, two-vCore capacity and AI Model Management eligibility. In the actual environment, confirm `azure_ai >= 2.5.6`, native `ai.search` with `ctid` output, six extensions and three models. Configurations requiring unpublished Build-demo helpers are out of scope.
 
+Rehearse post-creation portal consent and recovery of an interrupted configuration hook on a cluster without accepted terms. Do not infer unattended first-time deployment from an already-consented environment. Include the [participant first-time steps](01-deploy.md#first-time-horizondb-deployment) and model readiness time in the schedule.
+
 On an empty dedicated cluster, execute SQL 01–07 and inspect 08. Expect 18 embeddings of 1536 dimensions, both indexes, a completed pipeline with three output rows and 18 graph products. Check Health, then actually click Design My Room and verify six live trace stages, model responses, prices within budget and no mock-success behavior on failures.
 
 Rehearse venue-network TLS, database firewalls, application IP restrictions, fixed NAT egress and private Key Vault connectivity. Run `azd up` from an empty environment, then `azd down --purge`; verify the dedicated group, Container Apps-managed group and deleted vault are gone. For teaching, use `azd provision` → SQL exercises → `azd deploy`, with npm preparation completed beforehand. Measure creation, restarts, model readiness, deployment and inference.

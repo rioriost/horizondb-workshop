@@ -16,10 +16,10 @@ index b1d1133..2d7d49b 100644
  node_modules/
 diff --git a/README.en.md b/README.en.md
 new file mode 100644
-index 0000000..9dd4de0
+index 0000000..0790e81
 --- /dev/null
 +++ b/README.en.md
-@@ -0,0 +1,88 @@
+@@ -0,0 +1,98 @@
 +# Zava Designer Agent — HorizonDB workshop fork
 +
 +[日本語](README.md)
@@ -44,6 +44,16 @@ index 0000000..9dd4de0
 +Use letters, digits and hyphens in the environment name and a region ID such as `japaneast`. Authenticate both CLIs with the same account. Changing shared global defaults is unnecessary. Initial database creation and managed-model preparation can take some time.
 +
 +Cloud Shell (Bash) is supported too. Check the tools above, including Node.js 24+, and work under `$HOME` with attached storage. Before `azd up` in Cloud Shell, set `azd env set AZURE_HTTP_CLIENT_IP '<browser-source-IPv4>'`. Open `https://api.ipify.org` in your browser to find its IPv4, not Cloud Shell's address.
++
++## First-time HorizonDB deployment
++
++Accept managed-model terms manually after cluster creation. Neither `azd up` nor the hooks automatically accept terms. Existing users must also complete this step whenever consent is requested.
++
++1. After the first command finishes, open the created HorizonDB cluster in Azure portal. AI Model Management enablement can fail after infrastructure creation completes.
++2. In **AI Model Manager**, check **Enable managed models**, select **Save**, then review and accept the terms according to organizational policy.
++3. If processing stopped, rerun the original command (`azd up` or `azd provision`) in the same environment. Do not recreate the environment or cluster.
++
++If infrastructure creation completed and only `postprovision` failed, you can resume configuration alone with `node scripts/hooks.mjs configure`. If the first run succeeded and models are still preparing, wait rather than reprovision. Two `azd provision` runs are not inherently required. Wait until all three models are usable before AI exercises or application initialization. See the [official enablement and consent procedure](https://learn.microsoft.com/azure/horizondb/ai/ai-model-management#enable-ai-model-management).
 +
 +## What is automated
 +
@@ -91,7 +101,7 @@ index 0000000..9dd4de0
 +
 +Start with `azd provision`, explain the technology while resources are created, then run `node zava/scripts/psql.mjs` from the parent workshop root. This launches TLS-validated psql without printing credentials. After the SQL exercises, run `azd deploy` here; initialization reuses the existing catalog, embeddings and graph.
 +
-+Standalone deployment still uses **`azd up` alone**.
++Once terms are accepted, **`azd up` runs the standalone deployment end to end**. Follow the steps above when first-time manual consent and recovery are needed.
 +
 +## Cleanup
 +
@@ -110,10 +120,10 @@ index 0000000..9dd4de0
 +Upstream: `microsoft/Build26-DEM364-simplify-app-dev-with-cloud-native-postgresql-in-azure-horizondb`, revision `74d448cde1066defc62bb17ae999f68ab1cfa9f2`. The editable local branch is `workshop/azd`; pushing to `upstream` is disabled. No GitHub-hosted fork was created.
 diff --git a/README.md b/README.md
 dissimilarity index 99%
-index 93ca390..8cb73fa 100644
+index 93ca390..d6b9ab7 100644
 --- a/README.md
 +++ b/README.md
-@@ -1,274 +1,88 @@
+@@ -1,274 +1,98 @@
 -<a name="start-building"></a>
 -<br>
 -<p align="center">
@@ -413,6 +423,16 @@ index 93ca390..8cb73fa 100644
 +
 +Cloud Shell（Bash）でも実行できます。Node.js 24以降を含む上記ツールを確認し、ストレージを接続した`$HOME`配下で作業してください。Cloud Shellを使う場合は、`azd up`の前にブラウザーのIPv4を`azd env set AZURE_HTTP_CLIENT_IP '<ブラウザーの接続元IPv4>'`で設定します。ブラウザーで`https://api.ipify.org`を開いて確認し、Cloud ShellのIPとは区別してください。
 +
++## 初めてHorizonDBをデプロイする場合
++
++管理モデルの利用規約への同意は、クラスター作成後に手動で行います。`azd up`やフックは自動で同意しません。既存の利用者でも同意を求められた場合は、同じ操作が必要です。
++
++1. 最初のコマンドが終了したら、Azure Portalで作成されたHorizonDBクラスターを開きます。インフラ作成後のAI Model Management有効化でエラーになる場合があります。
++2. **AI Model Manager**で**Enable managed models**にチェックして**Save**を押し、利用規約を確認して組織の方針に従って同意します。
++3. 処理が停止した場合は、同じ環境で元のコマンド（`azd up`または`azd provision`）を再実行します。環境やクラスターを作り直す必要はありません。
++
++インフラ作成が完了し、`postprovision`だけが失敗した場合は、`node scripts/hooks.mjs configure`で構成処理だけを再開することもできます。1回目が成功してモデルの準備中なら、再作成せず準備完了を待ちます。`azd provision`が必ず2回必要な仕様ではありません。3モデルが利用できる状態になるまで、AI演習やアプリ初期化には進まないでください。[公式の有効化・同意手順](https://learn.microsoft.com/azure/horizondb/ai/ai-model-management#enable-ai-model-management)
++
 +## 自動で作成するもの
 +
 +| 対象 | ハンズオン用の構成 |
@@ -459,7 +479,7 @@ index 93ca390..8cb73fa 100644
 +
 +親のハンズオンでは最初に`azd provision`でDBとホスティングを作成し、待機中に技術解説を行います。教材ルートから`node zava/scripts/psql.mjs`で、パスワードを表示せずTLS検証付きの`psql`に接続できます。SQL演習の後にこのフォルダーで`azd deploy`を実行します。演習で作成済みの18商品・Embedding・グラフを再利用します。
 +
-+単独デモの実行は引き続き**`azd up`のみ**です。
++利用規約への同意が完了していれば、単独デモは**`azd up`で一括実行**できます。初回の手動同意と再開が必要な場合は、上記の手順に従ってください。
 +
 +## 後片付け
 +

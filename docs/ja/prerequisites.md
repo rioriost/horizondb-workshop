@@ -6,7 +6,7 @@
 
 ## Azure・権限・費用
 
-HorizonDB PostgreSQL 17、2 vCore、およびAI Model Management（プレビュー）のEmbedding・チャット・リランカーを利用できるサブスクリプションとリージョンを使います。モデルの利用規約を確認し、同意してから進めてください。このハンズオンでは管理モデルを使うため、個別のモデルデプロイやAPIキーの用意は不要です。
+HorizonDB PostgreSQL 17、2 vCore、およびAI Model Management（プレビュー）のEmbedding・チャット・リランカーを利用できるサブスクリプションとリージョンを使います。モデルの利用条件と費用を事前に確認してください。**初めてHorizonDBをデプロイする場合、利用規約への同意はクラスター作成後にAzure Portalで行います。** [初回の有効化手順](01-deploy.md#初めてhorizondbをデプロイする場合)に従ってください。同意後のモデル作成はサービスが管理するため、個別のモデルデプロイやAPIキーの用意は不要です。
 
 リソースグループの作成・削除と、Managed IdentityへのRBAC割り当てが必要です。Owner、またはContributorとRBAC管理権限を用意します。組織で利用が許可された環境を使ってください。DBとアプリには接続元IPを限定した公開接続を使い、Key VaultにはPrivate Endpointで接続します。
 

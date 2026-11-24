@@ -17,7 +17,7 @@ Initialization reuses the catalog, embeddings and graph from the SQL exercises a
 
 **Container Apps is the default host.** ACR builds the image and deploys the React UI and Express API; no local Docker or manual image push is needed. Post-deployment hooks check the UI, database and real six-stage design request. Resolve reported errors before retrying.
 
-For a standalone demonstration starting from an empty environment, run **`azd up`** in the fork. It also initializes the catalog, search indexes and graph automatically.
+For a standalone demonstration starting from an empty environment, run **`azd up`** in the fork. It also initializes the catalog, search indexes and graph automatically. Model terms acceptance is not automated: follow the [first-time procedure](01-deploy.md#first-time-horizondb-deployment) in portal and rerun `azd up` in the same environment if processing stopped.
 
 ## Allow browser HTTPS access
 

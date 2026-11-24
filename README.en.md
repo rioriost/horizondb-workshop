@@ -25,6 +25,8 @@ You need an Azure subscription with resource-creation and RBAC-assignment permis
 
 Start with `azd provision` to create the database and application infrastructure, then run `azd deploy` after the SQL exercises. For a standalone demo, run `azd up` in the prepared local `zava/` fork.
 
+**For a first HorizonDB deployment, accept managed-model terms in portal after cluster creation.** Resume in the same environment if consent interrupted the configuration hook; two `azd provision` runs are not always required. See [first-time enablement and recovery](docs/en/01-deploy.md#first-time-horizondb-deployment).
+
 **Azure Container Apps is the default host.** Azure Container Registry builds the image remotely; local Docker is unnecessary. The [application chapter](docs/en/04-zava.md) also explains how to select App Service.
 
 ## Included data and application
